@@ -603,7 +603,7 @@ function fR(n){return'R$'+Math.round(n).toLocaleString('pt-BR');}
 function fL(n){return Math.round(n)+'L';}
 
 /* ── SPARKLINE ── */
-function spark(id,vals,labs,fmtFn,highlightIdx=-1){
+function spark(id,vals,labs,fmtFn,highlightIdx=-1,desc=''){
   const wrap=document.getElementById(id);if(!wrap)return;
   wrap.innerHTML='';
   const W=wrap.offsetWidth||220,H=wrap.offsetHeight||120;
@@ -614,18 +614,15 @@ function spark(id,vals,labs,fmtFn,highlightIdx=-1){
     wrap.innerHTML='<div style="height:100%;display:flex;align-items:center;justify-content:center;font-family:\'Barlow\',sans-serif;font-size:12px;color:#9BA8B0;">Sem dados no período</div>';
     return;
   }
-  // Ponto único: view centrada sem linha
+  // Ponto único: bloco de texto — valor + descrição + "Semana X"
   if(pairs.length===1){
     const {v,l}=pairs[0];
-    const cx=(W/2).toFixed(1),cy=(H/2+4).toFixed(1);
-    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-    svg.setAttribute('viewBox','0 0 '+W+' '+H);
-    svg.setAttribute('width','100%');svg.setAttribute('height','100%');
-    svg.style.display='block';
-    svg.innerHTML='<circle cx="'+cx+'" cy="'+cy+'" r="7" fill="#FFA62C" stroke="white" stroke-width="2.5"/>'
-      +'<text x="'+cx+'" y="'+(H/2-10).toFixed(1)+'" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="700" fill="#FFA62C">'+fmtFn(v)+'</text>'
-      +'<text x="'+cx+'" y="'+(H/2+22).toFixed(1)+'" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="10" font-weight="400" fill="#A89870">'+l+'</text>';
-    wrap.appendChild(svg);
+    const semLabel=l.replace(/^S(\d)$/,'Semana $1');
+    wrap.innerHTML='<div style="height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;padding:0 8px;text-align:center;">'
+      +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:22px;font-weight:700;color:#FFA62C;line-height:1.1;">'+fmtFn(v)+'</div>'
+      +(desc?'<div style="font-family:\'Barlow\',sans-serif;font-size:10px;color:#9BA8B0;line-height:1.3;">'+desc+'</div>':'')
+      +'<div style="font-family:\'Barlow Condensed\',sans-serif;font-size:11px;font-weight:600;color:#A89870;letter-spacing:0.5px;margin-top:2px;">'+semLabel+'</div>'
+      +'</div>';
     return;
   }
   // Trabalhar apenas com pontos com dado
@@ -824,9 +821,9 @@ function go(){
     const spR = semsSpark.map(d => d.lv ? d.fv/d.lv : 0);
     const hlIdx = sem > 0 ? semsSpark.findIndex(d => d.s === sem) : -1;
     requestAnimationFrame(()=>{
-      spark('sp-tp', spP, spLabels, fR, hlIdx);
-      spark('sp-tl', spL, spLabels, fL, hlIdx);
-      spark('sp-rl', spR, spLabels, v=>'R$'+v.toFixed(2).replace('.',','), hlIdx);
+      spark('sp-tp', spP, spLabels, fR, hlIdx, 'ticket por pedido');
+      spark('sp-tl', spL, spLabels, fL, hlIdx, 'volume por evento');
+      spark('sp-rl', spR, spLabels, v=>'R$'+v.toFixed(2).replace('.',','), hlIdx, 'receita por litro');
     });
   }
 
