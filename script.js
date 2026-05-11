@@ -808,17 +808,34 @@ function go(){
     const spIds = ['sp-tp','sp-tl','sp-rl'];
     const MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
 
+    function hideSpark(id){
+      const el=document.getElementById(id);
+      if(!el)return;
+      el.innerHTML='';
+      el.style.display='none';
+      // expande o bloco de valor para ocupar toda a largura do card
+      const vb=el.previousElementSibling;
+      if(vb)vb.style.flex='1';
+    }
+    function showSpark(id){
+      const el=document.getElementById(id);
+      if(!el)return;
+      el.style.display='';
+      const vb=el.previousElementSibling;
+      if(vb)vb.style.flex='';
+    }
+
     // Ano todo → esconde sparkline, card mostra só o valor
     if (mesRaw === 0) {
-      spIds.forEach(id => { const el=document.getElementById(id); if(el){el.innerHTML='';el.style.flex='0';el.style.minWidth='0';} });
+      spIds.forEach(hideSpark);
     // Trimestre → 3 pontos mensais (1 por mês do tri)
     } else if (tri && TRI_MESES[tri]) {
-      spIds.forEach(id => { const el=document.getElementById(id); if(el){el.style.flex='1';el.style.minWidth='';} });
+      spIds.forEach(showSpark);
       const triMeses = TRI_MESES[tri];
       const triData = triMeses.map(m => {
-        const fv=[1,2,3,4].reduce((s,w)=>s+(SEMANAL_RAW['Faturamento']?.[m]?.[w]?.res||0),0);
-        const pv=[1,2,3,4].reduce((s,w)=>s+(SEMANAL_RAW['Pedidos']?.[m]?.[w]?.res||0),0);
-        const lv=[1,2,3,4].reduce((s,w)=>s+(SEMANAL_RAW['Litros vendidos']?.[m]?.[w]?.res||0),0);
+        const fv=[1,2,3,4].reduce((a,w)=>a+(SEMANAL_RAW['Faturamento']?.[m]?.[w]?.res||0),0);
+        const pv=[1,2,3,4].reduce((a,w)=>a+(SEMANAL_RAW['Pedidos']?.[m]?.[w]?.res||0),0);
+        const lv=[1,2,3,4].reduce((a,w)=>a+(SEMANAL_RAW['Litros vendidos']?.[m]?.[w]?.res||0),0);
         return { fv, pv, lv };
       });
       const triLabels = triMeses.map(m => MNAMES[m]);
@@ -830,7 +847,6 @@ function go(){
         spark('sp-tl', triL, triLabels, fL, -1, 'volume por evento');
         spark('sp-rl', triR, triLabels, v=>'R$'+v.toFixed(2).replace('.',','), -1, 'receita por litro');
       });
-    // Mês com semana única selecionada e só 1 semana tem dado → esconde
     } else {
       const allSems = [1,2,3,4].map(s => {
         const fv = SEMANAL_RAW['Faturamento']?.[mes]?.[s]?.res || 0;
@@ -839,11 +855,11 @@ function go(){
         return { s, fv, pv, lv, hasData: pv > 0 || fv > 0 };
       });
       const comDado = allSems.filter(d => d.hasData);
-      // Semana filtrada e só 1 (ou nenhuma) semana com dado → sem gráfico
+      // Semana única selecionada com ≤1 semana de dado → esconde sparkline
       if (sem > 0 && comDado.length <= 1) {
-        spIds.forEach(id => { const el=document.getElementById(id); if(el){el.innerHTML='';el.style.flex='0';el.style.minWidth='0';} });
+        spIds.forEach(hideSpark);
       } else {
-        spIds.forEach(id => { const el=document.getElementById(id); if(el){el.style.flex='1';el.style.minWidth='';} });
+        spIds.forEach(showSpark);
         const semsSpark = comDado.length ? comDado : allSems;
         const spLabels = semsSpark.map(d => 'S'+d.s);
         const spP = semsSpark.map(d => d.pv ? d.fv/d.pv : 0);
