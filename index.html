@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Germânia Chopp — Dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;500;600;700;800;900&family=Barlow:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+
+
+<style>
+/* ═══ DARK MODE ═══ */
+:root[data-theme="dark"] {
+  --bg:        #1A1208;
+  --bg2:       #221A0E;
+  --bg3:       #2C2214;
+  --card-bg:   #261E12;
+  --card-bd:   rgba(255,200,120,0.10);
+  --txt:       #F1E3CE;
+  --txt-faint: rgba(241,227,206,0.45);
+  --gold:      #FFA62C;
+  --gold-lt:   #FFB84D;
+  --red-pill:  #C92B1E;
+  --circ-bg:   #3A2A14;
+}
+:root[data-theme="dark"] body { background: var(--bg); color: var(--txt); }
+/* page-wrap não expande além do conteúdo — aplica em ambos os modos */
+.page-wrap {
+  flex: none !important;
+  min-height: 0 !important;
+  height: auto !important;
+}
+:root[data-theme="dark"] .page-wrap { background: #C92B1E; }
+:root[data-theme="dark"] .card {
+  background: var(--card-bg) !important;
+  border-color: var(--card-bd) !important;
+}
+/* Filtros */
+:root[data-theme="dark"] .filters-wrap {
+  background: var(--bg2);
+  border-color: rgba(255,166,44,0.12);
+}
+:root[data-theme="dark"] .filters { background: var(--bg2); }
+:root[data-theme="dark"] .f-lbl { color: rgba(241,227,206,0.5); }
+:root[data-theme="dark"] .f-sel, :root[data-theme="dark"] .f-input {
+  background: var(--bg3); color: var(--txt);
+  border-color: rgba(255,166,44,0.2);
+}
+:root[data-theme="dark"] .f-sep { color: rgba(241,227,206,0.4); }
+:root[data-theme="dark"] .f-pipe { color: rgba(241,227,206,0.2); }
+:root[data-theme="dark"] .f-upd { color: rgba(241,227,206,0.35); }
+:root[data-theme="dark"] .btn-sh {
+  color: rgba(241,227,206,0.55);
+  border-color: rgba(255,166,44,0.15);
+}
+:root[data-theme="dark"] .btn-sh:hover,
+:root[data-theme="dark"] .btn-sh.active {
+  background: rgba(255,166,44,0.12); color: var(--gold);
+}
+:root[data-theme="dark"] .btn-c {
+  color: rgba(241,227,206,0.5);
+  border-color: rgba(241,227,206,0.15);
+}
+/* Cards texto */
+:root[data-theme="dark"] .c-val { color: var(--txt); }
+:root[data-theme="dark"] .c-sub { color: var(--txt-faint); }
+:root[data-theme="dark"] .c-title { color: var(--txt); }
+:root[data-theme="dark"] .circ-lbl { color: rgba(241,227,206,0.45); }
+:root[data-theme="dark"] .circ-tip { color: rgba(241,227,206,0.5); }
+:root[data-theme="dark"] .bezel { color: rgba(241,227,206,0.5) !important; }
+:root[data-theme="dark"] .bezel.neu { color: rgba(241,227,206,0.45) !important; }
+/* EZ valores */
+:root[data-theme="dark"] .ez-kpi-val { color: var(--txt) !important; }
+/* Tabs — aba ativa: fundo marrom + título amarelo */
+/* Tabs — barra vermelha igual ao header, aba ativa fundo marrom sem contorno */
+:root[data-theme="dark"] .tabs-wrap { background: #C92B1E; border-color: #C92B1E; }
+:root[data-theme="dark"] .tab { color: rgba(255,230,200,0.6); border-color: transparent; }
+:root[data-theme="dark"] .tab.active {
+  background: var(--bg2);
+  color: var(--gold) !important;
+  border-color: transparent;
+}
+:root[data-theme="dark"] .tab:hover:not(.active) { color: #fff; }
+/* Header KPIs — manter amarelo do claro */
+:root[data-theme="dark"] .hk-v { color: var(--gold) !important; }
+:root[data-theme="dark"] .hk-l { color: rgba(241,227,206,0.5); }
+:root[data-theme="dark"] .hk-bar-footer { color: rgba(241,227,206,0.4); }
+:root[data-theme="dark"] .h-resumo-lbl { color: rgba(241,227,206,0.5); }
+/* Círculos — fundo marrom dentro do card */
+:root[data-theme="dark"] .circ-wrap circle[fill="white"] { fill: var(--circ-bg) !important; }
+:root[data-theme="dark"] .circ-wrap svg circle:nth-child(2) { fill: var(--circ-bg); }
+/* EZ table */
+:root[data-theme="dark"] .ez-table th { color: rgba(241,227,206,0.45); border-color: rgba(255,166,44,0.1); }
+:root[data-theme="dark"] .ez-table td { color: var(--txt); border-color: rgba(255,166,44,0.08); }
+:root[data-theme="dark"] .ez-table tr:hover td { background: rgba(255,166,44,0.05); }
+:root[data-theme="dark"] .ez-badge { background: rgba(255,166,44,0.1); color: var(--gold-lt); }
+:root[data-theme="dark"] .ez-bar-label { color: var(--txt); }
+:root[data-theme="dark"] .ez-bar-track { background: rgba(255,255,255,0.07); }
+:root[data-theme="dark"] .ez-bar-pct { color: rgba(241,227,206,0.55); }
+/* Footer vermelho */
+:root[data-theme="dark"] .footer-wrap { background: #C92B1E !important; }
+:root[data-theme="dark"] .footer { color: rgba(255,220,180,0.7); border-color: transparent; }
+/* Cards CSAT */
+:root[data-theme="dark"] .csat-ph { color: var(--txt-faint); }
+:root[data-theme="dark"] .csat-ph span { color: rgba(241,227,206,0.3); }
+:root[data-theme="dark"] .csat-ph small { color: rgba(241,227,206,0.35); }
+:root[data-theme="dark"] .card-c { background: var(--card-bg) !important; }
+:root[data-theme="dark"] .card-c .c-title { color: var(--txt); }
+:root[data-theme="dark"] .card-c .c-sub { color: var(--txt-faint); }
+:root[data-theme="dark"] .pill-l4 { background: rgba(255,166,44,0.15) !important; color: var(--txt) !important; }
+
+/* ─── Círculo fundo dark ─── */
+:root[data-theme="dark"] .circ-bg-fill { fill: #3A2A14 !important; }
+
+/* ─── Tab content — garantir display correto em qualquer tema ─── */
+/* Tab visibility — máxima especificidade, anular qualquer position do style.css */
+#tab-visao, #tab-ez, #tab-metas {
+  display: none !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  overflow: hidden !important;
+  position: static !important;
+  visibility: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+#tab-visao.active, #tab-ez.active, #tab-metas.active {
+  display: block !important;
+  height: auto !important;
+  overflow: visible !important;
+  position: static !important;
+  visibility: visible !important;
+  opacity: 1 !important;
+  pointer-events: auto !important;
+}
+#tab-ez.active, #tab-metas.active { min-height: 100vh !important; }
+#tab-visao.active { min-height: 0 !important; }
+/* Sem gap entre header e tabs em nenhum modo */
+.header { margin-bottom: 0 !important; padding-bottom: 0 !important; }
+.tabs-wrap { margin-top: 0 !important; }
+
+
+/* ─── Bezel evolução ─── */
+.bezel-evo {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.5px;
+  color: #9BA8B0;
+}
+
+/* ─── Botão dark mode — toggle switch ─── */
+.filters-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+.dark-toggle {
+  display: flex; align-items: center; gap: 7px;
+  cursor: pointer; user-select: none;
+}
+.dark-toggle-lbl {
+  font-family: 'Barlow Condensed', sans-serif;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.5px;
+  color: #8B7040; white-space: nowrap;
+  transition: color 0.2s;
+}
+.dark-toggle-track {
+  position: relative; width: 36px; height: 20px;
+  background: rgba(180,165,140,0.25);
+  border-radius: 10px;
+  transition: background 0.25s;
+  flex-shrink: 0;
+}
+.dark-toggle-thumb {
+  position: absolute; top: 3px; left: 3px;
+  width: 14px; height: 14px;
+  background: #8B7040; border-radius: 50%;
+  transition: transform 0.25s, background 0.25s;
+}
+/* Estado ativo (dark on) */
+:root[data-theme="dark"] .dark-toggle-track { background: #FFA62C; }
+:root[data-theme="dark"] .dark-toggle-thumb { background: #1A1208; transform: translateX(16px); }
+:root[data-theme="dark"] .dark-toggle-lbl { color: var(--gold-lt); }
+
+/* ════════════════════════════════════════
+   MOBILE — max-width: 768px
+   ════════════════════════════════════════ */
+@media (max-width: 768px) {
+
+  /* ── Header ── */
+  .header-inner {
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 16px 10px;
+  }
+  .h-logo {
+    width: 52px !important;
+    height: 52px !important;
+  }
+  .h-logo img {
+    width: 52px !important;
+    height: 52px !important;
+  }
+  .h-div { display: none; }
+  .h-brand { flex: 1; min-width: 0; }
+  .h-brand .eyebrow { font-size: 9px; letter-spacing: 2px; margin-bottom: 2px; }
+  .h-brand h1 { font-size: 22px; letter-spacing: 0.5px; }
+
+  /* KPIs: linha compacta abaixo do título, ocupa linha inteira */
+  .h-kpis-wrap {
+    display: flex !important;
+    flex-direction: column;
+    width: 100%;
+    margin-left: 0;
+    gap: 4px;
+    order: 3;
+  }
+  .h-resumo-lbl {
+    display: block !important;
+    font-size: 9px;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+  .h-kpis {
+    display: flex !important;
+    gap: 4px;
+    width: 100%;
+  }
+  .hk {
+    flex: 1;
+    min-width: 0 !important;
+    padding: 6px 8px !important;
+  }
+  .hk-l { font-size: 8px; letter-spacing: 1.5px; margin-bottom: 2px; }
+  .hk-v { font-size: 20px !important; }
+  .hk-v .u { font-size: 10px; }
+  .hk-bar-footer { display: none; }
+
+  /* ── Abas ── */
+  .tabs-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .tabs {
+    padding: 0 12px;
+    gap: 2px;
+    flex-wrap: nowrap;
+    min-width: max-content;
+  }
+  .tab { font-size: 11px; padding: 8px 14px 7px; letter-spacing: 1px; white-space: nowrap; }
+
+  /* ── Filtros ── */
+  .filters {
+    padding: 8px 12px !important;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .filters-right {
+    width: 100%;
+    justify-content: space-between;
+    margin-left: 0 !important;
+    order: 10;
+  }
+  .f-shortcuts { flex-wrap: wrap; gap: 4px; }
+  .f-upd { font-size: 9px; }
+  .dark-toggle-lbl { font-size: 11px; }
+
+  /* ── Grid de cards: 1 coluna ── */
+  .row { grid-template-columns: 1fr !important; gap: 8px; margin-bottom: 8px; }
+
+  /* ── Card principal ── */
+  .main { padding: 10px 12px !important; }
+  .card-ab { padding: 12px 14px !important; height: auto !important; }
+  .c-center { flex-direction: row; align-items: center; gap: 12px; }
+  .c-val { font-size: 38px !important; }
+  .c-val-block { flex: 1; }
+
+  /* Círculo no mobile — sem scale, SVG reduzido diretamente */
+  .circ-wrap {
+    flex-shrink: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    overflow: visible;
+  }
+  .circ-wrap svg { width: 72px !important; height: 72px !important; }
+  .circ-lbl { font-size: 8px; }
+  .circ-tip { display: none !important; }
+  .c-center {
+    align-items: center !important;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  /* Tabela agentes — esconder coluna Classificação no mobile */
+  .ez-table th:last-child,
+  .ez-table td:last-child { display: none !important; }
+
+  /* Tabela agentes — sem overflow scroll, largura normal */
+  .ez-table { width: 100%; table-layout: fixed; }
+  [style*="overflow-x:auto"] { overflow-x: visible !important; }
+
+  /* Abas — caber as 3 sem scroll */
+  .tabs { padding: 0 8px; gap: 0; min-width: unset; }
+  .tab { font-size: 9px !important; padding: 7px 8px 6px !important; letter-spacing: 0.5px !important; flex: 1; text-align: center; }
+
+  /* ── Sparklines ── */
+  #sp-tp, #sp-tl, #sp-rl { height: 70px !important; }
+
+  /* ── EZ ── */
+  .ez-kpi-val { font-size: 34px !important; }
+  .ez-bar-label { min-width: 120px; font-size: 10px; }
+
+  /* Heatmap: scroll horizontal */
+  #ez-heatmap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* Tabela performance: scroll horizontal */
+  .ez-table { font-size: 12px; }
+  .ez-table th { font-size: 9px; padding: 6px 8px; }
+  .ez-table td { font-size: 12px; padding: 8px 8px; }
+  [style*="overflow-x:auto"] { overflow-x: auto !important; -webkit-overflow-scrolling: touch; }
+
+  /* ── Metas ── */
+  /* Cards do time e agentes já viram 1 coluna pelo .row override */
+  /* Ranking: full width abaixo dos agentes */
+  .card-ab[style*="padding-bottom:16px"] { padding-bottom: 14px !important; }
+
+  /* ── Cards CSAT ── */
+  .card-c { height: auto !important; min-height: 90px; }
+
+  /* ── Footer ── */
+  .footer span { font-size: 10px; letter-spacing: 1px; }
+}
+
+/* Extra pequeno: 375px e abaixo */
+@media (max-width: 375px) {
+  .h-brand h1 { font-size: 18px; }
+  .hk-v { font-size: 17px !important; }
+  .tab { font-size: 10px; padding: 7px 10px 6px; }
+  .c-val { font-size: 32px !important; }
+  .ez-kpi-val { font-size: 28px !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="page-wrap"><header class="header">
+  <div class="header-inner">
+    <div class="h-logo" style="display:flex;align-items:center;"><img src="logo-germania.png" alt="Germânia" style="height:72px;width:auto;"></div>
+    <div class="h-div"></div>
+    <div class="h-brand">
+      <div class="eyebrow">Germânia · Cervejaria · Dashboard Comercial</div>
+      <h1 style="color:var(--gold-lt);">LIG CHOPP GERMÂNIA</h1>
+
+    </div>
+    <div class="h-kpis-wrap">
+      <div class="h-resumo-lbl" id="h-resumo-lbl">Resumo Fevereiro</div>
+      <div class="h-kpis">
+      <div class="hk neu" id="hk-lit"><div class="hk-l">Litros</div><div class="hk-v" id="hv-lit">—</div><div class="hk-bar-wrap"><div class="hk-bar neu" id="hb-lit" style="width:0%"></div></div><div class="hk-bar-footer"><span class="hk-bar-lbl">meta</span><span class="hk-bar-pct" id="hp-lit">0%</span></div></div>
+      <div class="hk neu" id="hk-rec"><div class="hk-l">Receita</div><div class="hk-v" id="hv-rec">—</div><div class="hk-bar-wrap"><div class="hk-bar neu" id="hb-rec" style="width:0%"></div></div><div class="hk-bar-footer"><span class="hk-bar-lbl">meta</span><span class="hk-bar-pct" id="hp-rec">0%</span></div></div>
+      <div class="hk neu" id="hk-cv"><div class="hk-l">Conversão</div><div class="hk-v" id="hv-cv">—</div><div class="hk-bar-wrap"><div class="hk-bar neu" id="hb-cv" style="width:0%"></div></div><div class="hk-bar-footer"><span class="hk-bar-lbl">meta</span><span class="hk-bar-pct" id="hp-cv">0%</span></div></div>
+    </div>
+      </div>
+    </div>
+  </div>
+</header>
+<div class="tabs-wrap">
+  <div class="tabs">
+    <div class="tab active" onclick="setTab(this)">Performance Vendas</div>
+    <div class="tab" onclick="setTab(this)">Performance Atendimento</div>
+    <div class="tab" onclick="setTab(this)">Gestão de Metas</div>
+  </div>
+</div>
+<div class="filters-wrap">
+  <div class="filters">
+    <div class="f-group">
+      <span class="f-lbl">Mês</span>
+      <select class="f-sel" id="f-mes" onchange="go()">
+        <option value="0">Todos (ano)</option>
+        <option value="1">Janeiro</option>
+        <option value="2">Fevereiro</option>
+        <option value="3">Março</option>
+        <option value="4">Abril</option>
+        <option value="5">Maio</option>
+        <option value="6">Junho</option>
+        <option value="7">Julho</option>
+        <option value="8">Agosto</option>
+        <option value="9">Setembro</option>
+        <option value="10">Outubro</option>
+        <option value="11">Novembro</option>
+        <option value="12">Dezembro</option>
+      </select>
+    </div>
+    <div class="f-group">
+      <span class="f-lbl">Semana</span>
+      <select class="f-sel" id="f-sem" onchange="go()">
+        <option value="0">Todo o mês</option>
+        <option value="1">Semana 1</option>
+        <option value="2">Semana 2</option>
+        <option value="3">Semana 3</option>
+        <option value="4">Semana 4</option>
+      </select>
+    </div>
+    <div class="f-group f-shortcuts">
+      <button class="btn-sh" onclick="setShortcut('mes-atual')">Este mês</button>
+      <button class="btn-sh" onclick="setShortcut('mes-passado')">Mês passado</button>
+      <select class="f-sel" id="f-tri" onchange="setTrimestre(this.value)" title="Filtrar por trimestre">
+        <option value="">Trimestre</option>
+        <option value="1">Q1 · Jan–Mar</option>
+        <option value="2">Q2 · Abr–Jun</option>
+        <option value="3">Q3 · Jul–Set</option>
+        <option value="4">Q4 · Out–Dez</option>
+      </select>
+    </div>
+    <div class="f-group" id="f-resp-group" style="display:none;">
+      <span class="f-pipe" style="margin-right:8px;">|</span>
+      <span class="f-lbl">Agente</span>
+      <select class="f-sel" id="f-resp" onchange="ezRendered=false;renderEZ()">
+        <option value="">Todos</option>
+        <option>Taciana</option>
+        <option>Lídia</option>
+        <option>Raiza</option>
+        <option>Mirian</option>
+        <option>Marciano</option>
+      </select>
+    </div>
+    <button class="btn-f" onclick="go()">FILTRAR</button>
+    <button class="btn-c" onclick="reset()">LIMPAR</button>
+    <div class="filters-right">
+      <label class="dark-toggle" onclick="toggleDark()" title="Alternar tema">
+        <span class="dark-toggle-lbl" id="btn-dark">Modo escuro</span>
+        <span class="dark-toggle-track" id="dark-track">
+          <span class="dark-toggle-thumb"></span>
+        </span>
+      </label>
+      <span class="f-upd">Atualizado em: <span id="upd-date"></span></span>
+    </div>
+  </div>
+</div>
+
+<div id="tab-visao" class="tab-content active"><div class="main">
+
+  <!-- ROW 1 -->
+  <div class="row">
+    <div class="card line-l1" id="c-alc" data-s="none">
+      <div class="card-ab">
+        <div class="c-header"><div class="c-title pill-l1">Alcance</div><div class="c-sub">Total de leads captados no período</div></div>
+        <div class="c-center">
+          <div class="c-val-block">
+            <div class="c-val" id="v-alc">—</div>
+            <div class="bezel-stack" style="display:flex;flex-direction:column;gap:2px;"><span class="bezel neu" id="bz-alc">—</span><span id="bz-alc-evo" class="bezel-evo">—</span></div>
+          </div>
+          <div class="circ-wrap"><div id="ci-alc"></div><div class="circ-lbl">meta</div><div class="circ-tip" id="ct-alc">—</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card line-l1" id="c-at" data-s="none">
+      <div class="card-ab">
+        <div class="c-header"><div class="c-title pill-l1">Atendimentos</div><div class="c-sub">Atendimentos únicos no canal</div></div>
+        <div class="c-center">
+          <div class="c-val-block">
+            <div class="c-val" id="v-at">—</div>
+            <div class="bezel-stack" style="display:flex;flex-direction:column;gap:2px;"><span class="bezel warm" id="bz-at">—</span><span id="bz-at-evo" class="bezel-evo">—</span></div>
+          </div>
+          <div class="circ-wrap"><div id="ci-at"></div><div class="circ-lbl">meta</div><div class="circ-tip" id="ct-at">—</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card line-l1" id="c-orc" data-s="gray">
+      <div class="card-ab">
+        <div class="c-header"><div class="c-title pill-l1">Orçamentos</div><div class="c-sub">Proposta Comercial + etapas seguintes</div></div>
+        <div class="c-center">
+          <div class="c-val-block">
+            <div class="c-val" id="v-orc">—</div>
+            <div class="bezel-stack" style="display:flex;flex-direction:column;gap:2px;"><span class="bezel warm" id="bz-orc">—</span><span id="bz-orc-evo" class="bezel-evo">—</span></div>
+          </div>
+          <div class="circ-wrap"><div id="ci-orc"></div><div class="circ-lbl">meta</div><div class="circ-tip" id="ct-orc">—</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 2 -->
+  <div class="row">
+    <div class="card line-l2" id="c-ped" data-s="gray">
+      <div class="card-ab">
+        <div class="c-header"><div class="c-title pill-l2">Pedidos</div><div class="c-sub">Deals fechados no período</div></div>
+        <div class="c-center">
+          <div class="c-val-block">
+            <div class="c-val" id="v-ped">—</div>
+            <div class="bezel-stack" style="display:flex;flex-direction:column;gap:2px;"><span class="bezel warm" id="bz-ped">—</span><span id="bz-ped-evo" class="bezel-evo">—</span></div>
+          </div>
+          <div class="circ-wrap"><div id="ci-ped"></div><div class="circ-lbl">meta</div><div class="circ-tip" id="ct-ped">—</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card line-l2" id="c-lit" data-s="gray">
+      <div class="card-ab">
+        <div class="c-header"><div class="c-title pill-l2">Litros</div><div class="c-sub">Volume total vendido no período</div></div>
+        <div class="c-center">
+          <div class="c-val-block">
+            <div class="c-val" id="v-lit">—</div>
+            <div class="bezel-stack" style="display:flex;flex-direction:column;gap:2px;"><span class="bezel neu" id="bz-lit">—</span><span id="bz-lit-evo" class="bezel-evo">—</span></div>
+          </div>
+          <div class="circ-wrap"><div id="ci-lit"></div><div class="circ-lbl">meta</div><div class="circ-tip" id="ct-lit">—</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="card line-l2" id="c-rec" data-s="gray">
+      <div class="card-ab">
+        <div class="c-header"><div class="c-title pill-l2">Receita</div><div class="c-sub">Faturamento total do período</div></div>
+        <div class="c-center">
+          <div class="c-val-block">
+            <div class="c-val" id="v-rec" style="font-size:34px;">—</div>
+            <div class="bezel-stack" style="display:flex;flex-direction:column;gap:2px;"><span class="bezel neu" id="bz-rec">—</span><span id="bz-rec-evo" class="bezel-evo">—</span></div>
+          </div>
+          <div class="circ-wrap"><div id="ci-rec"></div><div class="circ-lbl">meta</div><div class="circ-tip" id="ct-rec">—</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ROW 3 — sparklines -->
+  <div class="row">
+
+    <div class="card line-l3" data-s="none">
+      <div class="card-ab" style="position:relative;">
+        <div class="c-header"><div class="c-title pill-l3">Ticket Médio / Pedido</div><div class="c-sub">Receita ÷ pedidos + variação semanal</div></div>
+        <div style="flex:1;display:flex;align-items:center;gap:0;">
+          <div class="c-val-block" style="flex-shrink:0;z-index:2;">
+            <div class="c-val" id="v-tp" style="font-size:36px;">—</div>
+            <span class="bezel neu" id="bz-tp">—</span>
+          </div>
+          <div id="sp-tp" style="flex:1;height:88px;align-self:center;overflow:visible;margin-left:18px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card line-l3" data-s="none">
+      <div class="card-ab" style="position:relative;">
+        <div class="c-header"><div class="c-title pill-l3">Ticket Médio / Litros</div><div class="c-sub">Volume médio por evento + variação semanal</div></div>
+        <div style="flex:1;display:flex;align-items:center;gap:0;">
+          <div class="c-val-block" style="flex-shrink:0;z-index:2;">
+            <div class="c-val" id="v-tl" style="font-size:36px;">—</div>
+            <span class="bezel neu" id="bz-tl">—</span>
+          </div>
+          <div id="sp-tl" style="flex:1;height:88px;align-self:center;overflow:visible;margin-left:18px;"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card line-l3" data-s="none">
+      <div class="card-ab" style="position:relative;">
+        <div class="c-header"><div class="c-title pill-l3">Receita / Litro</div><div class="c-sub">Yield médio de faturamento + variação semanal</div></div>
+        <div style="flex:1;display:flex;align-items:center;gap:0;">
+          <div class="c-val-block" style="flex-shrink:0;z-index:2;">
+            <div class="c-val" id="v-rl" style="font-size:36px;">—</div>
+            <span class="bezel neu" id="bz-rl">—</span>
+          </div>
+          <div id="sp-rl" style="flex:1;height:88px;align-self:center;overflow:visible;margin-left:18px;"></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+
+
+  <!-- ROW 4 — CSAT -->
+  <div class="row" id="row-csat">
+    <div class="card line-l3" data-s="none"><div class="card-ab">
+      <div class="c-header"><div class="c-title pill-l3">Total de Avaliações</div><div class="c-sub">Pesquisa de satisfação CSAT · período selecionado</div></div>
+      <div class="ez-kpi-val" id="v-csat-tot" style="font-size:48px;margin-top:8px;">—</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--txt-faint);margin-top:4px;" id="v-csat-sub"></div>
+    </div></div>
+    <div class="card line-l3" data-s="none"><div class="card-ab" id="csat-dist-ab" style="height:auto;padding-bottom:12px;">
+      <div class="c-header"><div class="c-title pill-l3">Distribuição de Avaliações</div><div class="c-sub" id="csat-dist-sub">Resultado por categoria</div></div>
+      <div id="csat-dist-body"></div>
+    </div></div>
+    <div class="card line-l3" data-s="none"><div class="card-ab">
+      <div class="c-header"><div class="c-title pill-l3">Score de Satisfação</div><div class="c-sub">% satisfeitos − % insatisfeitos</div></div>
+      <div id="csat-score-body"><div class="ez-kpi-val" style="font-size:56px;margin-top:4px;">—</div></div>
+    </div></div>
+  </div>
+
+</div>
+
+</div>
+<!-- LOADING OVERLAY -->
+<div id="loading-msg" style="display:none;position:fixed;inset:0;background:rgba(26,18,6,0.55);z-index:9999;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+  <div style="width:44px;height:44px;border:4px solid rgba(255,255,255,0.2);border-top-color:#E8B840;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+  <div style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:600;letter-spacing:2px;color:rgba(255,255,255,0.7);text-transform:uppercase;">Carregando dados...</div>
+</div>
+
+<!-- ABA EZ -->
+<div id="tab-ez" class="tab-content" style="min-height:100vh;"><div class="main" id="ez-main"></div></div>
+
+<!-- ABA METAS -->
+<div id="tab-metas" class="tab-content" style="min-height:100vh;"><div class="main" id="metas-main"></div></div>
+
+<div class="footer-wrap"><div class="footer">
+  <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Lig Chopp Germânia</span>
+</div></div>
+
+<script src="script.js"></script>
+
+</body>
+</html>
