@@ -805,26 +805,58 @@ function go(){
 
   // Sparklines — filtra semanas sem dados para evitar quedas bruscas para zero
   {
-    const spMes = (mesRaw === 0 || tri) ? (new Date().getMonth()+1) : mes;
-    const allSems = [1,2,3,4].map(s => {
-      const fv = SEMANAL_RAW['Faturamento']?.[spMes]?.[s]?.res || 0;
-      const pv = SEMANAL_RAW['Pedidos']?.[spMes]?.[s]?.res || 0;
-      const lv = SEMANAL_RAW['Litros vendidos']?.[spMes]?.[s]?.res || 0;
-      return { s, fv, pv, lv, hasData: pv > 0 || fv > 0 };
-    });
-    // Passa apenas semanas com dado — spark() filtra zeros internamente
-    const comDado = allSems.filter(d => d.hasData);
-    const semsSpark = comDado.length ? comDado : allSems;
-    const spLabels = semsSpark.map(d => 'S'+d.s);
-    const spP = semsSpark.map(d => d.pv ? d.fv/d.pv : 0);
-    const spL = semsSpark.map(d => d.pv ? d.lv/d.pv : 0);
-    const spR = semsSpark.map(d => d.lv ? d.fv/d.lv : 0);
-    const hlIdx = sem > 0 ? semsSpark.findIndex(d => d.s === sem) : -1;
-    requestAnimationFrame(()=>{
-      spark('sp-tp', spP, spLabels, fR, hlIdx, 'ticket por pedido');
-      spark('sp-tl', spL, spLabels, fL, hlIdx, 'volume por evento');
-      spark('sp-rl', spR, spLabels, v=>'R$'+v.toFixed(2).replace('.',','), hlIdx, 'receita por litro');
-    });
+    const spIds = ['sp-tp','sp-tl','sp-rl'];
+    const MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+
+    // Ano todo → esconde sparkline, card mostra só o valor
+    if (mesRaw === 0) {
+      spIds.forEach(id => { const el=document.getElementById(id); if(el){el.innerHTML='';el.style.flex='0';el.style.minWidth='0';} });
+    // Trimestre → 3 pontos mensais (1 por mês do tri)
+    } else if (tri && TRI_MESES[tri]) {
+      spIds.forEach(id => { const el=document.getElementById(id); if(el){el.style.flex='1';el.style.minWidth='';} });
+      const triMeses = TRI_MESES[tri];
+      const triData = triMeses.map(m => {
+        const fv=[1,2,3,4].reduce((s,w)=>s+(SEMANAL_RAW['Faturamento']?.[m]?.[w]?.res||0),0);
+        const pv=[1,2,3,4].reduce((s,w)=>s+(SEMANAL_RAW['Pedidos']?.[m]?.[w]?.res||0),0);
+        const lv=[1,2,3,4].reduce((s,w)=>s+(SEMANAL_RAW['Litros vendidos']?.[m]?.[w]?.res||0),0);
+        return { fv, pv, lv };
+      });
+      const triLabels = triMeses.map(m => MNAMES[m]);
+      const triP = triData.map(d => d.pv ? d.fv/d.pv : 0);
+      const triL = triData.map(d => d.pv ? d.lv/d.pv : 0);
+      const triR = triData.map(d => d.lv ? d.fv/d.lv : 0);
+      requestAnimationFrame(()=>{
+        spark('sp-tp', triP, triLabels, fR, -1, 'ticket por pedido');
+        spark('sp-tl', triL, triLabels, fL, -1, 'volume por evento');
+        spark('sp-rl', triR, triLabels, v=>'R$'+v.toFixed(2).replace('.',','), -1, 'receita por litro');
+      });
+    // Mês com semana única selecionada e só 1 semana tem dado → esconde
+    } else {
+      const allSems = [1,2,3,4].map(s => {
+        const fv = SEMANAL_RAW['Faturamento']?.[mes]?.[s]?.res || 0;
+        const pv = SEMANAL_RAW['Pedidos']?.[mes]?.[s]?.res || 0;
+        const lv = SEMANAL_RAW['Litros vendidos']?.[mes]?.[s]?.res || 0;
+        return { s, fv, pv, lv, hasData: pv > 0 || fv > 0 };
+      });
+      const comDado = allSems.filter(d => d.hasData);
+      // Semana filtrada e só 1 (ou nenhuma) semana com dado → sem gráfico
+      if (sem > 0 && comDado.length <= 1) {
+        spIds.forEach(id => { const el=document.getElementById(id); if(el){el.innerHTML='';el.style.flex='0';el.style.minWidth='0';} });
+      } else {
+        spIds.forEach(id => { const el=document.getElementById(id); if(el){el.style.flex='1';el.style.minWidth='';} });
+        const semsSpark = comDado.length ? comDado : allSems;
+        const spLabels = semsSpark.map(d => 'S'+d.s);
+        const spP = semsSpark.map(d => d.pv ? d.fv/d.pv : 0);
+        const spL = semsSpark.map(d => d.pv ? d.lv/d.pv : 0);
+        const spR = semsSpark.map(d => d.lv ? d.fv/d.lv : 0);
+        const hlIdx = sem > 0 ? semsSpark.findIndex(d => d.s === sem) : -1;
+        requestAnimationFrame(()=>{
+          spark('sp-tp', spP, spLabels, fR, hlIdx, 'ticket por pedido');
+          spark('sp-tl', spL, spLabels, fL, hlIdx, 'volume por evento');
+          spark('sp-rl', spR, spLabels, v=>'R$'+v.toFixed(2).replace('.',','), hlIdx, 'receita por litro');
+        });
+      }
+    }
   }
 
   hkpi('hk-lit','hv-lit','ht-lit',tLit,mrL,v=>fmt(Math.round(v))+'<span class="u"> L</span>');
