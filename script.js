@@ -608,49 +608,68 @@ function spark(id,vals,labs,fmtFn,highlightIdx=-1){
   wrap.innerHTML='';
   const W=wrap.offsetWidth||220,H=wrap.offsetHeight||120;
   const pL=8,pR=12,pT=20,pB=20,uW=W-pL-pR,uH=H-pT-pB,n=vals.length;
-  const valid=vals.filter(v=>v>0);
-  if(!valid.length){
+  // Filtrar pares (val, label) com dado — zeros são "sem dado"
+  const pairs=vals.map((v,i)=>({v,l:labs[i]||'',origI:i})).filter(p=>p.v>0);
+  if(!pairs.length){
     wrap.innerHTML='<div style="height:100%;display:flex;align-items:center;justify-content:center;font-family:\'Barlow\',sans-serif;font-size:12px;color:#9BA8B0;">Sem dados no período</div>';
     return;
   }
-  const mn=Math.min(...valid)*0.88,mx=Math.max(...valid)*1.08,rng=mx-mn||1;
-  const xs=vals.map((_,i)=>pL+(i/(n-1))*uW);
-  const ys=vals.map(v=>pT+uH-((v-mn)/rng)*uH);
-  const pts=xs.map((x,i)=>`${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ');
-  const area=`M${xs[0].toFixed(1)},${ys[0].toFixed(1)} ${xs.map((x,i)=>`L${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ')} L${xs[n-1].toFixed(1)},${(H-pB).toFixed(1)} L${xs[0].toFixed(1)},${(H-pB).toFixed(1)} Z`;
-  const dotColors=vals.map((v,i)=>i===0?'#9BA8B0':v>=vals[i-1]?'#1E7A42':'#B82418');
-  const vLbls=vals.map((v,i)=>{
-    const a=i===0?'start':i===n-1?'end':'middle';
-    return `<text x="${xs[i].toFixed(1)}" y="${(ys[i]-7).toFixed(1)}" text-anchor="${a}"
-      font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600"
-      fill="${dotColors[i]}">${fmtFn(v)}</text>`;
+  // Ponto único: view centrada sem linha
+  if(pairs.length===1){
+    const {v,l}=pairs[0];
+    const cx=(W/2).toFixed(1),cy=(H/2+4).toFixed(1);
+    const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+    svg.setAttribute('viewBox','0 0 '+W+' '+H);
+    svg.setAttribute('width','100%');svg.setAttribute('height','100%');
+    svg.style.display='block';
+    svg.innerHTML='<circle cx="'+cx+'" cy="'+cy+'" r="7" fill="#FFA62C" stroke="white" stroke-width="2.5"/>'
+      +'<text x="'+cx+'" y="'+(H/2-10).toFixed(1)+'" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="700" fill="#FFA62C">'+fmtFn(v)+'</text>'
+      +'<text x="'+cx+'" y="'+(H/2+22).toFixed(1)+'" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="10" font-weight="400" fill="#A89870">'+l+'</text>';
+    wrap.appendChild(svg);
+    return;
+  }
+  // Trabalhar apenas com pontos com dado
+  const fVals=pairs.map(p=>p.v),fLabs=pairs.map(p=>p.l);
+  const fN=fVals.length;
+  const mn=Math.min(...fVals)*0.88,mx=Math.max(...fVals)*1.08,rng=mx-mn||1;
+  const xs=fVals.map((_,i)=>pL+(i/(fN-1))*uW);
+  const ys=fVals.map(v=>pT+uH-((v-mn)/rng)*uH);
+  const fHlIdx=highlightIdx>=0?pairs.findIndex(p=>p.origI===highlightIdx):-1;
+  const pts=xs.map((x,i)=>x.toFixed(1)+','+ys[i].toFixed(1)).join(' ');
+  const area='M'+xs[0].toFixed(1)+','+ys[0].toFixed(1)+' '+xs.map((x,i)=>'L'+x.toFixed(1)+','+ys[i].toFixed(1)).join(' ')+' L'+xs[fN-1].toFixed(1)+','+(H-pB).toFixed(1)+' L'+xs[0].toFixed(1)+','+(H-pB).toFixed(1)+' Z';
+  const dotColors=fVals.map((v,i)=>i===0?'#9BA8B0':v>=fVals[i-1]?'#1E7A42':'#B82418');
+  const vLbls=fVals.map((v,i)=>{
+    const a=i===0?'start':i===fN-1?'end':'middle';
+    return '<text x="'+xs[i].toFixed(1)+'" y="'+(ys[i]-7).toFixed(1)+'" text-anchor="'+a+'"'
+      +' font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600"'
+      +' fill="'+dotColors[i]+'">'+fmtFn(v)+'</text>';
   }).join('');
-  const sLbls=labs.map((l,i)=>{
-    const a=i===0?'start':i===n-1?'end':'middle';
-    return `<text x="${xs[i].toFixed(1)}" y="${(H-4).toFixed(1)}" text-anchor="${a}"
-      font-family="Barlow Condensed,sans-serif" font-size="10" font-weight="400"
-      fill="#A89870">${l}</text>`;
+  const sLbls=fLabs.map((l,i)=>{
+    const a=i===0?'start':i===fN-1?'end':'middle';
+    return '<text x="'+xs[i].toFixed(1)+'" y="'+(H-4).toFixed(1)+'" text-anchor="'+a+'"'
+      +' font-family="Barlow Condensed,sans-serif" font-size="10" font-weight="400"'
+      +' fill="#A89870">'+l+'</text>';
   }).join('');
-  const dots=vals.map((v,i)=>{
-    const isHL=highlightIdx>=0&&i===highlightIdx;
+  const dots=fVals.map((v,i)=>{
+    const isHL=fHlIdx>=0&&i===fHlIdx;
     const r=isHL?7:4;
     const stroke=isHL?'#FFA62C':'white';
     const sw=isHL?2.5:2;
-    const op=highlightIdx>=0&&!isHL?'0.35':'1';
-    return `<circle class="sd"
-      cx="${xs[i].toFixed(1)}" cy="${ys[i].toFixed(1)}" r="${r}" fill="${dotColors[i]}"
-      stroke="${stroke}" stroke-width="${sw}" opacity="${op}"
-      style="cursor:pointer;transition:r 0.15s;"
-      data-v="${fmtFn(v)}" data-l="${labs[i]}"/>`;
+    const op=fHlIdx>=0&&!isHL?'0.35':'1';
+    return '<circle class="sd"'
+      +' cx="'+xs[i].toFixed(1)+'" cy="'+ys[i].toFixed(1)+'" r="'+r+'" fill="'+dotColors[i]+'"'
+      +' stroke="'+stroke+'" stroke-width="'+sw+'" opacity="'+op+'"'
+      +' style="cursor:pointer;transition:r 0.15s;"'
+      +' data-v="'+fmtFn(v)+'" data-l="'+fLabs[i]+'"/>';
   }).join('');
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
-  svg.setAttribute('viewBox',`0 0 ${W} ${H}`);
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');
   svg.style.display='block';
-  svg.innerHTML=`<path d="${area}" fill="rgba(180,160,120,0.08)"/>
-    <polyline points="${pts}" fill="none" stroke="#C4B89A" stroke-width="1.8"
-      stroke-linejoin="round" stroke-linecap="round"/>
-    ${vLbls}${dots}${sLbls}`;
+  svg.innerHTML='<path d="'+area+'" fill="rgba(180,160,120,0.08)"/>'
+    +'<polyline points="'+pts+'" fill="none" stroke="#C4B89A" stroke-width="1.8"'
+    +' stroke-linejoin="round" stroke-linecap="round"/>'
+    +vLbls+dots+sLbls;
   const oldTip=document.querySelector('.sp-tip[data-id="'+id+'"]');
   if(oldTip)oldTip.remove();
   const tip=document.createElement('div');
@@ -796,14 +815,14 @@ function go(){
       const lv = SEMANAL_RAW['Litros vendidos']?.[spMes]?.[s]?.res || 0;
       return { s, fv, pv, lv, hasData: pv > 0 || fv > 0 };
     });
-    // Só plota semanas com dado — mínimo 2 pontos para desenhar linha
+    // Passa apenas semanas com dado — spark() filtra zeros internamente
     const comDado = allSems.filter(d => d.hasData);
-    const semsFiltradas = comDado.length >= 2 ? comDado : allSems;
-    const spLabels = semsFiltradas.map(d => 'S'+d.s);
-    const spP = semsFiltradas.map(d => d.pv ? d.fv/d.pv : 0);
-    const spL = semsFiltradas.map(d => d.pv ? d.lv/d.pv : 0);
-    const spR = semsFiltradas.map(d => d.lv ? d.fv/d.lv : 0);
-    const hlIdx = sem > 0 ? semsFiltradas.findIndex(d => d.s === sem) : -1;
+    const semsSpark = comDado.length ? comDado : allSems;
+    const spLabels = semsSpark.map(d => 'S'+d.s);
+    const spP = semsSpark.map(d => d.pv ? d.fv/d.pv : 0);
+    const spL = semsSpark.map(d => d.pv ? d.lv/d.pv : 0);
+    const spR = semsSpark.map(d => d.lv ? d.fv/d.lv : 0);
+    const hlIdx = sem > 0 ? semsSpark.findIndex(d => d.s === sem) : -1;
     requestAnimationFrame(()=>{
       spark('sp-tp', spP, spLabels, fR, hlIdx);
       spark('sp-tl', spL, spLabels, fL, hlIdx);
@@ -849,8 +868,30 @@ function go(){
     const elScr  = document.getElementById('csat-score-body');
 
     if (csat.total > 0) {
+      const nSat   = csatTix.filter(t=>t.CSAT&&['total. satisfeito','satisfeito'].includes(t.CSAT.toLowerCase())).length;
+      const nInsat = csatTix.filter(t=>t.CSAT&&['insatisfeito','total. insatisfeito'].includes(t.CSAT.toLowerCase())).length;
+      const nNeutro= csatTix.filter(t=>t.CSAT&&t.CSAT.toLowerCase()==='neutro').length;
       if (elTot)  elTot.textContent  = csat.total;
-      if (elSub)  elSub.textContent  = csat.total + ' ticket' + (csat.total!==1?'s':'') + ' avaliados';
+      if (elSub) {
+        elSub.innerHTML = csat.total + ' ticket' + (csat.total!==1?'s':'') + ' avaliados'
+          +'<div style="margin-top:10px;display:flex;flex-direction:column;gap:5px;">'
+          +'<div style="display:flex;align-items:center;gap:6px;">'
+          +'<span style="width:8px;height:8px;border-radius:50%;background:#1E7A42;flex-shrink:0;"></span>'
+          +'<span style="font-family:Barlow,sans-serif;font-size:12px;color:var(--txt-faint);flex:1;">Satisfeitos</span>'
+          +'<span style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:#1E7A42;">'+nSat+' <span style="font-size:11px;font-weight:400;">('+csat.pctSat+'%)</span></span>'
+          +'</div>'
+          +'<div style="display:flex;align-items:center;gap:6px;">'
+          +'<span style="width:8px;height:8px;border-radius:50%;background:#966A00;flex-shrink:0;"></span>'
+          +'<span style="font-family:Barlow,sans-serif;font-size:12px;color:var(--txt-faint);flex:1;">Neutros</span>'
+          +'<span style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:#966A00;">'+nNeutro+'</span>'
+          +'</div>'
+          +'<div style="display:flex;align-items:center;gap:6px;">'
+          +'<span style="width:8px;height:8px;border-radius:50%;background:#B82418;flex-shrink:0;"></span>'
+          +'<span style="font-family:Barlow,sans-serif;font-size:12px;color:var(--txt-faint);flex:1;">Insatisfeitos</span>'
+          +'<span style="font-family:Barlow Condensed,sans-serif;font-size:14px;font-weight:700;color:#B82418;">'+nInsat+' <span style="font-size:11px;font-weight:400;">('+csat.pctInsat+'%)</span></span>'
+          +'</div>'
+          +'</div>';
+      }
       if (elDSub) elDSub.textContent = 'Resultado por categoria · ' + csat.total + ' avaliações';
 
       // Distribuição
@@ -884,11 +925,18 @@ function go(){
         const score = csat.pctSat - csat.pctInsat;
         const sc = score>=50?'#1E7A42':score>=20?'#2E8B4A':score>=0?'#966A00':'#B82418';
         const sl = score>=50?'Excelente':score>=20?'Bom':score>=0?'Atenção':'Crítico';
-        elScr.innerHTML = '<div class="ez-kpi-val" style="font-size:56px;font-weight:700;color:'+sc+';margin-top:4px;">'+(score>0?'+':'')+score+'</div>'
-          +'<div style="font-family:Barlow,sans-serif;font-size:13px;font-weight:600;color:'+sc+';letter-spacing:1px;">'+sl+'</div>'
-          +'<div style="font-family:Barlow,sans-serif;font-size:12px;color:var(--txt-faint);margin-top:8px;">'
-          +'<span style="color:#1E7A42;">'+csat.pctSat+'% satisfeitos</span>'
-          +' · <span style="color:#B82418;">'+csat.pctInsat+'% insatisfeitos</span>'
+        const gaugePos = ((score + 100) / 200 * 100).toFixed(1);
+        elScr.innerHTML = '<div class="ez-kpi-val" style="font-size:52px;font-weight:700;color:'+sc+';margin-top:4px;line-height:1;">'+(score>0?'+':'')+score+'</div>'
+          +'<div style="font-family:Barlow,sans-serif;font-size:12px;font-weight:600;color:'+sc+';letter-spacing:1px;margin-top:4px;">'+sl+'</div>'
+          +'<div style="margin-top:14px;padding:0 4px;">'
+          +'<div style="position:relative;height:8px;border-radius:4px;background:linear-gradient(to right,#B82418,#966A00 50%,#1E7A42);overflow:visible;">'
+          +'<div style="position:absolute;top:-4px;left:calc('+gaugePos+'% - 6px);width:12px;height:16px;background:'+sc+';border-radius:3px;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,0.25);transition:left 0.6s ease;"></div>'
+          +'</div>'
+          +'<div style="display:flex;justify-content:space-between;margin-top:5px;">'
+          +'<span style="font-family:Barlow Condensed,sans-serif;font-size:10px;color:#B82418;font-weight:600;">-100</span>'
+          +'<span style="font-family:Barlow,sans-serif;font-size:10px;color:var(--txt-faint);">'+csat.pctSat+'% sat · '+csat.pctInsat+'% insat</span>'
+          +'<span style="font-family:Barlow Condensed,sans-serif;font-size:10px;color:#1E7A42;font-weight:600;">+100</span>'
+          +'</div>'
           +'</div>';
       }
     } else {
