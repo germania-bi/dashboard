@@ -996,6 +996,20 @@ function go(){
   ezRendered=false;
   if(document.getElementById('tab-ez')?.classList.contains('active'))renderEZ();
   if(document.getElementById('tab-metas')?.classList.contains('active'))renderMetas();
+
+  // Badge de estado ativo
+  {
+    const MF=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+               'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    const TN={1:'Q1 · Jan–Mar',2:'Q2 · Abr–Jun',3:'Q3 · Jul–Set',4:'Q4 · Out–Dez'};
+    let lbl='';
+    if(mesRaw===0)    lbl='Ano completo';
+    else if(tri)      lbl=TN[tri]||'';
+    else if(sem>0)    lbl=MF[mes]+' · Semana '+sem;
+    else              lbl=MF[mes]+' · todo o mês';
+    const tag=document.getElementById('filter-tag');
+    if(tag){tag.textContent=lbl;tag.style.opacity=lbl?'1':'0';}
+  }
 }
 
 /* ── ABA EZ ── */
@@ -1344,6 +1358,16 @@ function renderHeatmapMatrix(DAYS,matrix){
 }
 
 /* ── CONTROLES ── */
+function onMesChange(){
+  const t=document.getElementById('f-tri');
+  if(t)t.value='';
+  go();
+}
+function onSemChange(){
+  const t=document.getElementById('f-tri');
+  if(t)t.value='';
+  go();
+}
 function reset(){
   const fTri = document.getElementById('f-tri');
   if (fTri) fTri.value = '';
@@ -1357,10 +1381,10 @@ function reset(){
 }
 
 function setTrimestre(q) {
-  if (!q) return;
-  // Limpar semana ao selecionar trimestre
+  if (!q) { go(); return; }
   const fSem = document.getElementById('f-sem');
   if (fSem) fSem.value = 0;
+  document.querySelectorAll('.btn-sh').forEach(b=>b.classList.remove('active'));
   go();
 }
 
@@ -1368,6 +1392,8 @@ function setShortcut(type){
   const today=new Date();
   let mes=today.getMonth()+1, sem=0;
   if(type==='mes-passado'){ mes=today.getMonth()||12; }
+  const fTri=document.getElementById('f-tri');
+  if(fTri)fTri.value='';
   const m=document.getElementById('f-mes'),s=document.getElementById('f-sem');
   if(m)m.value=String(mes);
   if(s)s.value=String(sem);

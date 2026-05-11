@@ -370,7 +370,7 @@
   <div class="filters">
     <div class="f-group">
       <span class="f-lbl">Mês</span>
-      <select class="f-sel" id="f-mes" onchange="go()">
+      <select class="f-sel" id="f-mes" onchange="onMesChange()">
         <option value="0">Todos (ano)</option>
         <option value="1">Janeiro</option>
         <option value="2">Fevereiro</option>
@@ -388,7 +388,7 @@
     </div>
     <div class="f-group">
       <span class="f-lbl">Semana</span>
-      <select class="f-sel" id="f-sem" onchange="go()">
+      <select class="f-sel" id="f-sem" onchange="onSemChange()">
         <option value="0">Todo o mês</option>
         <option value="1">Semana 1</option>
         <option value="2">Semana 2</option>
@@ -416,6 +416,7 @@
     </div>
     <button class="btn-f" onclick="go()">FILTRAR</button>
     <button class="btn-c" onclick="reset()">LIMPAR</button>
+    <span id="filter-tag" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:0.6px;color:var(--gold);padding:3px 10px;border:1px solid rgba(255,166,44,0.25);border-radius:4px;white-space:nowrap;opacity:0;transition:opacity 0.3s;"></span>
     <div class="filters-right">
       <label class="dark-toggle" onclick="toggleDark()" title="Alternar tema">
         <span class="dark-toggle-lbl" id="btn-dark">Modo escuro</span>
@@ -597,7 +598,7 @@
   <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Lig Chopp Germânia</span>
 </div></div>
 
-<script src="script.js?v=7"></script>
+<script src="script.js?v=8"></script>
 
 </body>
 </html>
