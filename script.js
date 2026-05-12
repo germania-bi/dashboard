@@ -1039,7 +1039,7 @@ function go(){
     else if(sem>0)    lbl=MF[mes]+' · Semana '+sem;
     else              lbl=MF[mes]+' · todo o mês';
     const tag=document.getElementById('filter-tag');
-    if(tag){tag.textContent=lbl;tag.style.opacity=lbl?'1':'0';}
+    if(tag){tag.innerHTML=lbl?'<span style="opacity:0.45;margin-right:6px;">filtro selecionado</span>'+lbl:'';tag.style.opacity=lbl?'1':'0';}
   }
 }
 
