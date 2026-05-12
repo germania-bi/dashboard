@@ -141,7 +141,7 @@ function sumSemanal(indicador, weeks) {
 }
 
 /* ── PARSER EZ TICKETS ── */
-const EZ_EXCLUIR = ['Mirian']; // agentes excluídos de todos os cálculos
+const EZ_EXCLUIR = ['Mirian','Lídia']; // agentes excluídos de todos os cálculos EZ
 const METAS_EXCLUIR = ['Lídia']; // agentes removidos da aba de metas
 function processEZTickets(rows) {
   return rows.map(r => {
