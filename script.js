@@ -242,7 +242,7 @@ function renderMetas() {
   const MESES = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
                  'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
   const semLabel = effectiveSem > 0 && !triSelM && mesRawM !== 0
-    ? (semSel > 0 ? ` · até S${effectiveSem}` : ` · parcial S1–S${effectiveSem}`)
+    ? (semSel > 0 ? ` · Semana ${effectiveSem}` : ` · parcial S1–S${effectiveSem}`)
     : '';
   const nomeMes = mesRawM === 0 ? 'Ano Completo'
                 : triSelM ? TRI_NOMES[triSelM]
@@ -266,20 +266,27 @@ function renderMetas() {
   }
 
   // Acumular meta e real de todos os meses ativos
-  // effectiveSem > 0 → usa acumulado S1..Sem; 0 → usa coluna Real
-  const useSem = effectiveSem > 0 && !triSelM && mesRawM !== 0;
+  // semSel > 0 → semana isolada (S[sem] vs meta/4)
+  // isCurrentMonth sem semana → parcial acumulado (S1+...+Ssem vs meta cheia)
+  // else → Real total vs meta cheia
   const semKeys = ['s1','s2','s3','s4'];
   const dadosBase = METAS_RAW.filter(d => mesesAtivos.includes(d.mes));
   const dadosMap = {};
   dadosBase.forEach(d => {
     const key = d.agente + '|' + d.indicador;
     if (!dadosMap[key]) dadosMap[key] = { agente: d.agente, indicador: d.indicador, mes: mes, meta: 0, real: 0 };
-    dadosMap[key].meta += d.meta;
-    if (useSem) {
+    if (semSel > 0 && !triSelM && mesRawM !== 0) {
+      // Semana isolada: S[sem] vs meta/4
+      dadosMap[key].meta += d.meta / 4;
+      dadosMap[key].real += (d[semKeys[semSel - 1]] || 0);
+    } else if (isCurrentMonth && effectiveSem > 0) {
+      // Auto-parcial: acumulado S1..Ssem vs meta cheia
+      dadosMap[key].meta += d.meta;
       let acc = 0;
       for (let i = 0; i < effectiveSem; i++) acc += (d[semKeys[i]] || 0);
       dadosMap[key].real += acc;
     } else {
+      dadosMap[key].meta += d.meta;
       dadosMap[key].real += d.real;
     }
   });
