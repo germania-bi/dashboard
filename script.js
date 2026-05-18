@@ -340,9 +340,9 @@ function renderMetas() {
           <div style="height:6px;background:rgba(180,165,140,0.15);border-radius:3px;overflow:hidden;">
             <div style="height:100%;width:${pct.toFixed(1)}%;background:${c};border-radius:3px;transition:width 0.8s ease;"></div>
           </div>
-          <div style="display:flex;justify-content:space-between;margin-top:5px;">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--txt-faint);">meta: ${fmtV(ind, t.meta)}</span>
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--txt-faint);">${t.real >= t.meta ? '✓ atingida' : 'falta ' + fmtV(ind, Math.max(0, t.meta - t.real))}</span>
+          <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:7px;">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--txt-faint);">meta <strong style="color:var(--txt);font-weight:700;">${fmtV(ind, t.meta)}</strong></span>
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;color:${c};">${t.real >= t.meta ? '✓ atingida' : 'falta ' + fmtV(ind, Math.max(0, t.meta - t.real))}</span>
           </div>
         </div>
       </div>
@@ -357,17 +357,17 @@ function renderMetas() {
       const c   = cor(r.real, r.meta);
       return `
         <div style="margin-bottom:14px;">
-          <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:600;
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;
             letter-spacing:0.8px;color:var(--txt-faint);text-transform:uppercase;margin-bottom:4px;">${r.indicador}</div>
           <div style="display:flex;align-items:center;gap:10px;">
             <div style="flex:1;height:8px;background:rgba(180,165,140,0.15);border-radius:4px;overflow:hidden;">
               <div style="height:100%;width:${pct.toFixed(1)}%;background:${c};border-radius:4px;transition:width 0.8s ease;"></div>
             </div>
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;
               color:${c};min-width:38px;text-align:right;">${badge(r.real,r.meta)}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;margin-top:3px;">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:10px;color:var(--txt-faint);">${fmtV(r.indicador,r.real)} de ${fmtV(r.indicador,r.meta)}</span>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}</span></span>
           </div>
         </div>`;
     }).join('');
