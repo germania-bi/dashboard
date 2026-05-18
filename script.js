@@ -137,8 +137,16 @@ function getDateRangeForFilter(mes, sem) {
   const pad  = n => String(n).padStart(2,'0');
   const last = new Date(year, mes, 0).getDate();
   if (!sem || sem === 0) return { de: `${year}-${pad(mes)}-01`, ate: `${year}-${pad(mes)}-${pad(last)}` };
-  const dayStart = (sem-1)*7 + 1;
-  const dayEnd   = sem === 4 ? last : sem*7;
+  const f = SEM_FRONTEIRAS[year]?.[mes];
+  let dayStart, dayEnd;
+  if (f) {
+    const bounds = [0, f[0], f[1], f[2], last];
+    dayStart = bounds[sem - 1] + 1;
+    dayEnd   = bounds[sem];
+  } else {
+    dayStart = (sem - 1) * 7 + 1;
+    dayEnd   = sem === 4 ? last : sem * 7;
+  }
   return { de: `${year}-${pad(mes)}-${pad(dayStart)}`, ate: `${year}-${pad(mes)}-${pad(dayEnd)}` };
 }
 
