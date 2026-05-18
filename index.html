@@ -418,12 +418,26 @@
     <button class="btn-c" onclick="reset()">LIMPAR</button>
     <span id="filter-tag" style="font-family:'Barlow Condensed',sans-serif;font-size:12px;letter-spacing:0.6px;color:var(--gold);padding:3px 10px;border:1px solid rgba(255,166,44,0.25);border-radius:4px;white-space:nowrap;opacity:0;transition:opacity 0.3s;margin-left:12px;pointer-events:none;"></span>
     <div class="filters-right">
-      <label class="dark-toggle" onclick="toggleDark()" title="Alternar tema">
-        <span class="dark-toggle-lbl" id="btn-dark">Modo escuro</span>
-        <span class="dark-toggle-track" id="dark-track">
-          <span class="dark-toggle-thumb"></span>
-        </span>
-      </label>
+      <div style="position:relative;">
+        <label class="dark-toggle" onclick="toggleDark()" title="Alternar tema">
+          <span class="dark-toggle-lbl" id="btn-dark">Modo escuro</span>
+          <span class="dark-toggle-track" id="dark-track">
+            <span class="dark-toggle-thumb"></span>
+          </span>
+        </label>
+        <div id="theme-tip" style="position:absolute;bottom:calc(100% + 10px);right:0;
+          background:#1A1208;color:#FFA62C;font-family:'Barlow Condensed',sans-serif;
+          font-size:12px;letter-spacing:0.5px;padding:6px 12px;border-radius:6px;
+          border:1px solid rgba(255,166,44,0.35);white-space:nowrap;
+          opacity:0;transition:opacity 0.5s;pointer-events:none;
+          box-shadow:0 4px 14px rgba(0,0,0,0.5);">
+          Prefere modo claro? Clique aqui
+          <span style="position:absolute;bottom:-5px;right:16px;width:9px;height:9px;
+            background:#1A1208;border-right:1px solid rgba(255,166,44,0.35);
+            border-bottom:1px solid rgba(255,166,44,0.35);transform:rotate(45deg);
+            display:block;"></span>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -597,7 +611,7 @@
   <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Relacionamento / Lig Chopp Germânia</span>
 </div></div>
 
-<script src="script.js?v=24"></script>
+<script src="script.js?v=25"></script>
 
 </body>
 </html>

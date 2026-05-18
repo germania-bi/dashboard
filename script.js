@@ -561,10 +561,20 @@ function renderMetas() {
     applyDark(!isDark);
   };
 
-  // Inicializar
+  // Inicializar — dark por padrão; só muda se usuário salvou '0' explicitamente
   const saved = (() => { try { return localStorage.getItem(DARK_KEY); } catch(e){ return null; } })();
-  applyDark(saved === '1');
+  applyDark(saved !== '0');
   window.addEventListener('load', collapsePageWrap);
+
+  // Balão de dica — aparece por 5s só na primeira visita (sem preferência salva)
+  if (saved === null) {
+    setTimeout(() => {
+      const tip = document.getElementById('theme-tip');
+      if (!tip) return;
+      tip.style.opacity = '1';
+      setTimeout(() => { tip.style.opacity = '0'; }, 5000);
+    }, 1200);
+  }
 })();
 
 
