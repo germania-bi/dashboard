@@ -16,6 +16,24 @@ let SEMANAL_RAW  = {};
 let EZ_TICKETS   = [];
 let METAS_RAW    = [];
 
+// Fronteiras semanais reais por mês (ano → mês → [fim S1, fim S2, fim S3])
+// S4 vai até o fim do mês. Atualizar mensalmente.
+const SEM_FRONTEIRAS = {
+  2026: {
+    4: [11, 18, 25],  // Abril:  S1 1-11 | S2 12-18 | S3 19-25 | S4 26-30
+    5: [ 9, 16, 23],  // Maio:   S1 1-9  | S2 10-16 | S3 17-23 | S4 24-31
+  }
+};
+
+function calcSemCorrente(ano, mes, dia) {
+  const f = SEM_FRONTEIRAS[ano]?.[mes];
+  if (!f) return Math.min(4, Math.ceil(dia / 7));
+  if (dia <= f[0]) return 1;
+  if (dia <= f[1]) return 2;
+  if (dia <= f[2]) return 3;
+  return 4;
+}
+
 const SC = {green:'#1E7A42', yellow:'#966A00', red:'#B82418', gray:'#9BA8B0'};
 let SEM = [];
 
@@ -239,7 +257,7 @@ function renderMetas() {
   // Auto-parcial: mês corrente sem semana selecionada → mostra acumulado até semana atual
   const _hoje = new Date();
   const mesCorrente = _hoje.getMonth() + 1;
-  const semCorrente = Math.min(4, Math.ceil(_hoje.getDate() / 7));
+  const semCorrente = calcSemCorrente(_hoje.getFullYear(), mesCorrente, _hoje.getDate());
   const isCurrentMonth = !triSelM && mesRawM !== 0 && mes === mesCorrente;
   const effectiveSem = semSel > 0 ? semSel : (isCurrentMonth ? semCorrente : 0);
 
