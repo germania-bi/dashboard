@@ -1518,11 +1518,12 @@ function setTab(el){
   window.scrollTo(0,0);
 }
 
-/* ── FILTROS PADRÃO — mês atual, todo o mês ── */
+/* ── FILTROS PADRÃO — mês atual (ou anterior nos primeiros 7 dias), todo o mês ── */
 (function(){
   const today=new Date();
+  const mesPadrao = today.getDate() <= 7 ? (today.getMonth() || 12) : today.getMonth()+1;
   const m=document.getElementById('f-mes'),s=document.getElementById('f-sem');
-  if(m)m.value=String(today.getMonth()+1);
+  if(m)m.value=String(mesPadrao);
   if(s)s.value='0';
 })();
 
