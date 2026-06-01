@@ -1406,14 +1406,16 @@ function buildHeatmapFromTickets(data){
 function renderHeatmapMatrix(DAYS,matrix){
   const el=document.getElementById('ez-heatmap');
   if(!el)return;
-  const maxVal=Math.max(...matrix.flat(),1);
+  const allVals=matrix.flat().filter(v=>v>0).sort((a,b)=>a-b);
+  const capIdx=Math.floor(allVals.length*0.95);
+  const maxVal=allVals.length?Math.max(allVals[capIdx]??allVals[allVals.length-1],1):1;
   function getColor(val){
     if(val===0)return'rgba(200,185,160,0.10)';
-    const t=val/maxVal;
+    const t=Math.min(val/maxVal,1);
     if(t<=0.33){const p=t/0.33;return`rgb(${Math.round(241+(255-241)*p)},${Math.round(227+(166-227)*p)},${Math.round(206+(44-206)*p)})`;}
     else{const p=(t-0.33)/0.67;return`rgb(${Math.round(255+(201-255)*p)},${Math.round(166+(43-166)*p)},${Math.round(44+(30-44)*p)})`;}
   }
-  function textColor(val){return(val/maxVal)>0.45?'#FFF8F0':'#8B7040';}
+  function textColor(val){return Math.min(val/maxVal,1)>0.45?'#FFF8F0':'#8B7040';}
   const cellW=22,cellH=28,leftPad=32,topPad=22,bottomPad=22;
   const svgW=leftPad+24*cellW+4,svgH=topPad+7*cellH+bottomPad;
   let inner='';
