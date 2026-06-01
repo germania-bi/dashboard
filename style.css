@@ -12,7 +12,7 @@
   --bz-neu-txt:#5C6068;  --bz-neu-bg:#F0F0F0;  --bz-neu-bd:rgba(100,100,110,0.14);
   --sp-line:#C4B89A; --sp-area:rgba(180,160,120,0.08); --sp-dot:#C92B1E; --sp-val:#5C5040;
   --radius:8px; --mw:100%; --pad-h:2.5vw;
-  --h-ab:158px; --h-c:110px;
+  --h-ab:168px; --h-c:110px;
 }
 *{margin:0;padding:0;box-sizing:border-box;}
 body{font-family:'Barlow',sans-serif;background:var(--page-bg);color:var(--grafite);min-height:100vh;display:flex;flex-direction:column;overflow-x:hidden;}
@@ -125,7 +125,7 @@ body{font-family:'Barlow',sans-serif;background:var(--page-bg);color:var(--grafi
 */
 .card-ab{
   height:var(--h-ab);
-  padding:12px 15px 12px;
+  padding:18px 20px 16px;
   display:flex;
   flex-direction:column;
   position:relative;
@@ -176,7 +176,7 @@ body{font-family:'Barlow',sans-serif;background:var(--page-bg);color:var(--grafi
 }
 .c-val{
   font-family:'Barlow Condensed',sans-serif;
-  font-size:46px;font-weight:900;color:#1A1208;
+  font-size:40px;font-weight:900;color:#1A1208;
   line-height:1;flex-shrink:0;
   transition:transform 0.15s;
 }
