@@ -1536,11 +1536,17 @@ async function loadMetaData() {
   if (metaFetching) return;
   metaFetching = true;
   try {
-    const [insRes, camRes] = await Promise.all([
-      fetch(`${META_API}/api/insights?period=last_90d`).then(r => r.json()),
-      fetch(`${META_API}/api/campaigns?period=last_90d`).then(r => r.json())
+    // last_30d tem dados recentes (mês atual); last_90d para campanhas históricas
+    const [ins30, ins90, camRes] = await Promise.all([
+      fetch(META_API + '/api/insights?period=last_30d').then(r => r.json()),
+      fetch(META_API + '/api/insights?period=last_90d').then(r => r.json()),
+      fetch(META_API + '/api/campaigns?period=last_90d').then(r => r.json())
     ]);
-    META_DAILY     = insRes.data?.daily || [];
+    // Mescla daily de ambos os períodos (sem duplicatas, por data)
+    const d30 = ins30.data?.daily || [];
+    const d90 = ins90.data?.daily || [];
+    const seen = new Set(d30.map(d => d.date));
+    META_DAILY = [...d30, ...d90.filter(d => !seen.has(d.date))].sort((a,b) => a.date < b.date ? -1 : 1);
     META_CAMPAIGNS = camRes.data || [];
     console.log('[Meta Ads] daily records:', META_DAILY.length, 'campaigns:', META_CAMPAIGNS.length);
   } catch(e) {
