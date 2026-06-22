@@ -114,7 +114,7 @@
 
 /* ─── Tab content — garantir display correto em qualquer tema ─── */
 /* Tab visibility — máxima especificidade, anular qualquer position do style.css */
-#tab-visao, #tab-ez, #tab-metas {
+#tab-visao, #tab-ez, #tab-metas, #tab-marketing {
   display: none !important;
   height: 0 !important;
   min-height: 0 !important;
@@ -124,7 +124,7 @@
   opacity: 0 !important;
   pointer-events: none !important;
 }
-#tab-visao.active, #tab-ez.active, #tab-metas.active {
+#tab-visao.active, #tab-ez.active, #tab-metas.active, #tab-marketing.active {
   display: block !important;
   height: auto !important;
   overflow: visible !important;
@@ -133,7 +133,7 @@
   opacity: 1 !important;
   pointer-events: auto !important;
 }
-#tab-ez.active, #tab-metas.active { min-height: 100vh !important; }
+#tab-ez.active, #tab-metas.active, #tab-marketing.active { min-height: 100vh !important; }
 #tab-visao.active { min-height: 0 !important; }
 /* Sem gap entre header e tabs em nenhum modo */
 .header { margin-bottom: 0 !important; padding-bottom: 0 !important; }
@@ -364,6 +364,7 @@
     <div class="tab active" onclick="setTab(this)">Performance Vendas</div>
     <div class="tab" onclick="setTab(this)">Performance Atendimento</div>
     <div class="tab" onclick="setTab(this)">Gestão de Metas</div>
+<div class="tab" onclick="setTab(this)">Marketing & Ads</div>
   </div>
 </div>
 <div class="filters-wrap">
@@ -607,11 +608,14 @@
 <!-- ABA METAS -->
 <div id="tab-metas" class="tab-content" style="min-height:100vh;"><div class="main" id="metas-main"></div></div>
 
+<!-- ABA MARKETING & ADS -->
+<div id="tab-marketing" class="tab-content" style="min-height:100vh;"><div class="main" id="marketing-main"></div></div>
+
 <div class="footer-wrap"><div class="footer">
   <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Relacionamento / Lig Chopp Germânia</span>
 </div></div>
 
-<script src="script.js?v=29"></script>
+<script src="script.js?v=30"></script>
 
 </body>
 </html>

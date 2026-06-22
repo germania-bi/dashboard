@@ -16,6 +16,13 @@ let SEMANAL_RAW  = {};
 let EZ_TICKETS   = [];
 let METAS_RAW    = [];
 
+/* ── META ADS ── */
+const META_API = 'https://germania-ads-dashboard-production.up.railway.app';
+let META_INSIGHTS   = null;
+let META_CAMPAIGNS  = [];
+let META_PERIOD     = 'last_30d';
+let metaLoaded      = false;
+
 // Fronteiras semanais reais por mês (ano → mês → [fim S1, fim S2, fim S3])
 // S4 vai até o fim do mês. Atualizar mensalmente.
 const SEM_FRONTEIRAS = {
@@ -1517,7 +1524,193 @@ function setTab(el){
   if(tabName==='Performance Vendas')document.getElementById('tab-visao').classList.add('active');
   else if(tabName==='Performance Atendimento'){document.getElementById('tab-ez').classList.add('active');renderEZ();}
   else if(tabName==='Gestão de Metas'){document.getElementById('tab-metas').classList.add('active');renderMetas();}
+  else if(tabName==='Marketing & Ads'){document.getElementById('tab-marketing').classList.add('active');if(!metaLoaded)loadMetaData(META_PERIOD);else renderMarketing();}
   window.scrollTo(0,0);
+}
+
+/* ══════════════════════════════════════════
+   ABA MARKETING & ADS
+══════════════════════════════════════════ */
+function weeksForMetaPeriod(period) {
+  const hoje = new Date();
+  const mes  = hoje.getMonth() + 1;
+  const ano  = hoje.getFullYear();
+  const sem  = calcSemCorrente(ano, mes, hoje.getDate());
+  const allW = m => [{mes:m,sem:1},{mes:m,sem:2},{mes:m,sem:3},{mes:m,sem:4}];
+  const prev = m => m > 1 ? m - 1 : 12;
+  if (period === 'last_7d')  return [{mes, sem}];
+  if (period === 'last_30d') return allW(mes);
+  if (period === 'last_90d') return [...allW(prev(prev(mes))), ...allW(prev(mes)), ...allW(mes)];
+  return allW(mes);
+}
+
+async function loadMetaData(period) {
+  META_PERIOD = period || 'last_30d';
+  renderMarketing(); // mostra loading
+  try {
+    const [insRes, camRes] = await Promise.all([
+      fetch(`${META_API}/api/insights?period=${META_PERIOD}`).then(r => r.json()),
+      fetch(`${META_API}/api/campaigns?period=${META_PERIOD}`).then(r => r.json())
+    ]);
+    META_INSIGHTS  = insRes.summary || insRes;
+    META_CAMPAIGNS = Array.isArray(camRes) ? camRes : (camRes.campaigns || []);
+    metaLoaded = true;
+  } catch(e) {
+    META_INSIGHTS  = null;
+    META_CAMPAIGNS = [];
+  }
+  renderMarketing();
+}
+
+function renderMarketing() {
+  const el = document.getElementById('marketing-main');
+  if (!el) return;
+
+  const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const fmtN   = v => Number(v).toLocaleString('pt-BR');
+
+  // Botões de período
+  const PERIODS = [{key:'last_7d',lbl:'7D'},{key:'last_30d',lbl:'30D'},{key:'last_90d',lbl:'90D'}];
+  const periodoHTML = `
+  <div style="display:flex;align-items:center;gap:8px;margin-bottom:28px;">
+    <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-right:4px;">Período</span>
+    ${PERIODS.map(p=>`
+      <button onclick="loadMetaData('${p.key}')"
+        style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.5px;
+          padding:5px 18px;border-radius:20px;cursor:pointer;transition:all 0.2s;
+          border:1px solid ${META_PERIOD===p.key?'var(--gold)':'rgba(180,165,140,0.25)'};
+          background:${META_PERIOD===p.key?'rgba(255,166,44,0.12)':'transparent'};
+          color:${META_PERIOD===p.key?'var(--gold)':'var(--txt-faint)'};">${p.lbl}</button>
+    `).join('')}
+  </div>`;
+
+  if (!metaLoaded) {
+    el.innerHTML = `<div style="padding:24px 0;">${periodoHTML}<div style="text-align:center;padding:60px 0;font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--txt-faint);">Carregando dados do Meta Ads…</div></div>`;
+    return;
+  }
+
+  if (!META_INSIGHTS) {
+    el.innerHTML = `<div style="padding:24px 0;">${periodoHTML}<div style="text-align:center;padding:60px 0;font-family:'Barlow Condensed',sans-serif;font-size:15px;color:#B82418;">Não foi possível carregar os dados do Meta Ads. Verifique a conexão.</div></div>`;
+    return;
+  }
+
+  const ins    = META_INSIGHTS;
+  const spend  = parseFloat(ins.spend  || 0);
+  const reach  = parseInt(ins.reach    || 0);
+  const clicks = parseInt(ins.clicks   || 0);
+  const cpc    = parseFloat(ins.cpc    || 0);
+  const ctr    = parseFloat(ins.ctr    || 0);
+  const roas   = parseFloat(ins.roas   || 0);
+
+  // Dados Chopp para o mesmo período
+  const weeks  = weeksForMetaPeriod(META_PERIOD);
+  const atend  = sumSemanal('Engajamento / Atendimento', weeks);
+  const orcam  = sumSemanal('Orçamentos', weeks);
+  const pedid  = sumSemanal('Pedidos', weeks);
+  const fat    = sumSemanal('Faturamento', weeks);
+  const cpa    = pedid.res > 0 ? spend / pedid.res : 0;
+
+  // KPIs Meta
+  const kpis = [
+    {lbl:'Investimento', val: spend  > 0 ? fmtBRL(spend)          : '—', sub:'Meta Ads no período'},
+    {lbl:'Alcance',      val: reach  > 0 ? fmtN(reach)            : '—', sub:'Pessoas impactadas'},
+    {lbl:'Cliques',      val: clicks > 0 ? fmtN(clicks)           : '—', sub:'Cliques no anúncio'},
+    {lbl:'CPC',          val: cpc    > 0 ? fmtBRL(cpc)            : '—', sub:'Custo por clique'},
+    {lbl:'ROAS',         val: roas   > 0 ? roas.toFixed(2) + 'x'  : '—', sub:'Retorno sobre invest.'},
+  ];
+  const kpisHTML = `
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px;">
+    ${kpis.map(k=>`
+      <div class="card" style="padding:18px 20px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">${k.lbl}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:34px;font-weight:900;color:var(--txt);line-height:1;margin-bottom:4px;">${k.val}</div>
+        <div style="font-size:11px;color:var(--txt-faint);">${k.sub}</div>
+      </div>`).join('')}
+  </div>`;
+
+  // Funil estimado
+  const stages = [
+    {lbl:'Cliques Meta',   val:clicks,    src:'Meta Ads',   col:'#FFA62C'},
+    {lbl:'Atendimentos',   val:atend.res, src:'EZ Semanal', col:'#E07B18'},
+    {lbl:'Orçamentos',     val:orcam.res, src:'Planilha',   col:'#C92B1E'},
+    {lbl:'Pedidos',        val:pedid.res, src:'Planilha',   col:'#9B1F12'},
+    {lbl:'Faturamento',    val:fat.res,   src:'Planilha',   col:'#6B4E10', cur:true},
+  ];
+  const funnelHTML = `
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:20px;">Funil estimado do período</div>
+    <div style="display:flex;align-items:stretch;gap:0;">
+      ${stages.map((s,i)=>{
+        const prev = i>0 ? stages[i-1].val : null;
+        const cvr  = prev && prev>0 ? ((s.val/prev)*100).toFixed(1)+'%' : '';
+        const vstr = s.cur ? (s.val>0?fmtBRL(s.val):'—') : (s.val>0?fmtN(s.val):'—');
+        return `
+        <div style="flex:1;text-align:center;padding:0 10px;${i>0?'border-left:1px solid rgba(180,165,140,0.15);':''}">
+          <div style="font-size:10px;color:var(--txt-faint);margin-bottom:10px;min-height:14px;">${cvr?'→ '+cvr:''}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:28px;font-weight:900;line-height:1;margin-bottom:6px;color:${s.val>0?s.col:'rgba(180,165,140,0.25)'};">${vstr}</div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;color:var(--txt);margin-bottom:2px;">${s.lbl}</div>
+          <div style="font-size:10px;color:var(--txt-faint);">${s.src}</div>
+        </div>`;
+      }).join('')}
+    </div>
+    <div style="margin-top:18px;padding-top:12px;border-top:1px solid rgba(180,165,140,0.12);font-size:11px;color:var(--txt-faint);font-style:italic;">
+      Funil estimado — período coincidente, não atribuição direta. Atendimentos e vendas podem incluir leads de outras origens.
+    </div>
+  </div>`;
+
+  // CPA estimado
+  const cpaHTML = spend>0 && pedid.res>0 ? `
+  <div class="card" style="padding:20px;margin-bottom:24px;display:flex;align-items:center;gap:32px;">
+    <div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:8px;">CPA Estimado</div>
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:42px;font-weight:900;color:var(--gold);line-height:1;">${fmtBRL(cpa)}</div>
+      <div style="font-size:11px;color:var(--txt-faint);margin-top:4px;">Custo por pedido · aproximado</div>
+    </div>
+    <div style="flex:1;border-left:1px solid rgba(180,165,140,0.15);padding-left:32px;font-family:'Barlow Condensed',sans-serif;font-size:14px;color:var(--txt-faint);line-height:2;">
+      <div><strong style="color:var(--txt);">${fmtBRL(spend)}</strong> investido no Meta</div>
+      <div><strong style="color:var(--txt);">${fmtN(pedid.res)}</strong> pedidos no período</div>
+      <div style="font-size:11px;font-style:italic;margin-top:2px;">Inclui pedidos de todas as origens</div>
+    </div>
+  </div>` : '';
+
+  // Tabela de campanhas
+  const sorted = [...META_CAMPAIGNS].sort((a,b)=>parseFloat(b.spend||0)-parseFloat(a.spend||0));
+  const campHTML = sorted.length ? `
+  <div class="card" style="padding:20px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:16px;">Campanhas</div>
+    <div style="overflow-x:auto;">
+    <table style="width:100%;border-collapse:collapse;font-family:'Barlow Condensed',sans-serif;">
+      <thead>
+        <tr style="border-bottom:1px solid rgba(180,165,140,0.2);">
+          ${['Campanha','Status','Invest.','Alcance','Cliques','CTR','ROAS'].map((h,i)=>
+            `<th style="text-align:${i===0?'left':'right'};font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--txt-faint);padding:0 8px 10px${i===0?' 0':''};">${h}</th>`
+          ).join('')}
+        </tr>
+      </thead>
+      <tbody>
+        ${sorted.slice(0,12).map(c=>{
+          const sp=parseFloat(c.spend||0), rc=parseInt(c.reach||0);
+          const cl=parseInt(c.clicks||0), ct=parseFloat(c.ctr||0), ro=parseFloat(c.roas||0);
+          const on=(c.status||'').toUpperCase()==='ACTIVE';
+          return `
+          <tr style="border-bottom:1px solid rgba(180,165,140,0.08);">
+            <td style="padding:10px 8px 10px 0;font-size:13px;font-weight:600;color:var(--txt);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.name||'—'}</td>
+            <td style="padding:10px 8px;text-align:right;">
+              <span style="font-size:10px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:2px 8px;border-radius:20px;color:${on?'#1E7A42':'#9BA8B0'};background:${on?'rgba(30,122,66,0.1)':'rgba(155,168,176,0.1)'};">${on?'Ativa':'Pausada'}</span>
+            </td>
+            <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${sp>0?fmtBRL(sp):'—'}</td>
+            <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${rc>0?fmtN(rc):'—'}</td>
+            <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${cl>0?fmtN(cl):'—'}</td>
+            <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${ct>0?ct.toFixed(2)+'%':'—'}</td>
+            <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${ro>0?ro.toFixed(2)+'x':'—'}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>` : '';
+
+  el.innerHTML = `<div style="padding:28px 0 48px;">${periodoHTML}${kpisHTML}${funnelHTML}${cpaHTML}${campHTML}</div>`;
 }
 
 /* ── FILTROS PADRÃO — mês atual (ou anterior nos primeiros 7 dias), todo o mês ── */
