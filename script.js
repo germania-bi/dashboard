@@ -20,8 +20,9 @@ let METAS_RAW    = [];
 const META_API = 'https://germania-ads-dashboard-production.up.railway.app';
 let META_INSIGHTS   = null;
 let META_CAMPAIGNS  = [];
-let META_PERIOD     = 'last_30d';
+let META_PERIOD     = '';
 let metaLoaded      = false;
+let metaFetching    = false;
 
 // Fronteiras semanais reais por mês (ano → mês → [fim S1, fim S2, fim S3])
 // S4 vai até o fim do mês. Atualizar mensalmente.
@@ -1073,6 +1074,7 @@ function go(){
   ezRendered=false;
   if(document.getElementById('tab-ez')?.classList.contains('active'))renderEZ();
   if(document.getElementById('tab-metas')?.classList.contains('active'))renderMetas();
+  if(document.getElementById('tab-marketing')?.classList.contains('active'))renderMarketing();
 
   // Badge de estado ativo
   {
@@ -1524,41 +1526,32 @@ function setTab(el){
   if(tabName==='Performance Vendas')document.getElementById('tab-visao').classList.add('active');
   else if(tabName==='Performance Atendimento'){document.getElementById('tab-ez').classList.add('active');renderEZ();}
   else if(tabName==='Gestão de Metas'){document.getElementById('tab-metas').classList.add('active');renderMetas();}
-  else if(tabName==='Marketing & Ads'){document.getElementById('tab-marketing').classList.add('active');if(!metaLoaded)loadMetaData(META_PERIOD);else renderMarketing();}
+  else if(tabName==='Marketing & Ads'){document.getElementById('tab-marketing').classList.add('active');renderMarketing();}
   window.scrollTo(0,0);
 }
 
 /* ══════════════════════════════════════════
    ABA MARKETING & ADS
 ══════════════════════════════════════════ */
-function weeksForMetaPeriod(period) {
-  const hoje = new Date();
-  const mes  = hoje.getMonth() + 1;
-  const ano  = hoje.getFullYear();
-  const sem  = calcSemCorrente(ano, mes, hoje.getDate());
-  const allW = m => [{mes:m,sem:1},{mes:m,sem:2},{mes:m,sem:3},{mes:m,sem:4}];
-  const prev = m => m > 1 ? m - 1 : 12;
-  if (period === 'last_7d')  return [{mes, sem}];
-  if (period === 'last_30d') return allW(mes);
-  if (period === 'last_90d') return [...allW(prev(prev(mes))), ...allW(prev(mes)), ...allW(mes)];
-  return allW(mes);
-}
-
 async function loadMetaData(period) {
-  META_PERIOD = period || 'last_30d';
-  renderMarketing(); // mostra loading
+  if (metaFetching && META_PERIOD === period) return;
+  metaFetching = true;
+  META_PERIOD  = period;
   try {
     const [insRes, camRes] = await Promise.all([
-      fetch(`${META_API}/api/insights?period=${META_PERIOD}`).then(r => r.json()),
-      fetch(`${META_API}/api/campaigns?period=${META_PERIOD}`).then(r => r.json())
+      fetch(`${META_API}/api/insights?period=${period}`).then(r => r.json()),
+      fetch(`${META_API}/api/campaigns?period=${period}`).then(r => r.json())
     ]);
     META_INSIGHTS  = insRes.summary || insRes;
     META_CAMPAIGNS = Array.isArray(camRes) ? camRes : (camRes.campaigns || []);
-    metaLoaded = true;
+    console.log('[Meta Ads] loaded period=' + period, META_INSIGHTS);
   } catch(e) {
+    console.warn('[Meta Ads] API error:', e);
     META_INSIGHTS  = null;
     META_CAMPAIGNS = [];
   }
+  metaFetching = false;
+  metaLoaded   = true;
   renderMarketing();
 }
 
@@ -1566,31 +1559,27 @@ function renderMarketing() {
   const el = document.getElementById('marketing-main');
   if (!el) return;
 
-  const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   const fmtN   = v => Number(v).toLocaleString('pt-BR');
 
-  // Botões de período
-  const PERIODS = [{key:'last_7d',lbl:'7D'},{key:'last_30d',lbl:'30D'},{key:'last_90d',lbl:'90D'}];
-  const periodoHTML = `
-  <div style="display:flex;align-items:center;gap:8px;margin-bottom:28px;">
-    <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-right:4px;">Período</span>
-    ${PERIODS.map(p=>`
-      <button onclick="loadMetaData('${p.key}')"
-        style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:700;letter-spacing:0.5px;
-          padding:5px 18px;border-radius:20px;cursor:pointer;transition:all 0.2s;
-          border:1px solid ${META_PERIOD===p.key?'var(--gold)':'rgba(180,165,140,0.25)'};
-          background:${META_PERIOD===p.key?'rgba(255,166,44,0.12)':'transparent'};
-          color:${META_PERIOD===p.key?'var(--gold)':'var(--txt-faint)'};">${p.lbl}</button>
-    `).join('')}
-  </div>`;
+  // Lê filtro principal (mesmo padrão de renderEZ / renderMetas)
+  const mesRaw = parseInt(document.getElementById('f-mes')?.value);
+  const mes    = mesRaw || new Date().getMonth() + 1;
+  const sem    = parseInt(document.getElementById('f-sem')?.value) || 0;
+  const tri    = parseInt(document.getElementById('f-tri')?.value) || 0;
 
-  if (!metaLoaded) {
-    el.innerHTML = `<div style="padding:24px 0;">${periodoHTML}<div style="text-align:center;padding:60px 0;font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--txt-faint);">Carregando dados do Meta Ads…</div></div>`;
+  // Mapeia filtro → período da Meta API
+  const metaPeriod = sem > 0 ? 'last_7d' : tri > 0 ? 'last_90d' : 'last_30d';
+
+  // Busca se período mudou ou ainda não carregou
+  if (!metaLoaded || META_PERIOD !== metaPeriod) {
+    if (!metaFetching || META_PERIOD !== metaPeriod) loadMetaData(metaPeriod);
+    el.innerHTML = `<div style="text-align:center;padding:80px 0;font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--txt-faint);">Carregando dados do Meta Ads…</div>`;
     return;
   }
 
   if (!META_INSIGHTS) {
-    el.innerHTML = `<div style="padding:24px 0;">${periodoHTML}<div style="text-align:center;padding:60px 0;font-family:'Barlow Condensed',sans-serif;font-size:15px;color:#B82418;">Não foi possível carregar os dados do Meta Ads. Verifique a conexão.</div></div>`;
+    el.innerHTML = `<div style="text-align:center;padding:80px 0;font-family:'Barlow Condensed',sans-serif;font-size:15px;color:#B82418;">Não foi possível carregar os dados do Meta Ads.</div>`;
     return;
   }
 
@@ -1602,21 +1591,30 @@ function renderMarketing() {
   const ctr    = parseFloat(ins.ctr    || 0);
   const roas   = parseFloat(ins.roas   || 0);
 
-  // Dados Chopp para o mesmo período
-  const weeks  = weeksForMetaPeriod(META_PERIOD);
-  const atend  = sumSemanal('Engajamento / Atendimento', weeks);
-  const orcam  = sumSemanal('Orçamentos', weeks);
-  const pedid  = sumSemanal('Pedidos', weeks);
-  const fat    = sumSemanal('Faturamento', weeks);
-  const cpa    = pedid.res > 0 ? spend / pedid.res : 0;
+  // Semanas Chopp via filtro principal
+  let weeks = [];
+  if (tri > 0) {
+    const meses = tri===1?[1,2,3]:tri===2?[4,5,6]:tri===3?[7,8,9]:[10,11,12];
+    weeks = meses.flatMap(m => [{mes:m,sem:1},{mes:m,sem:2},{mes:m,sem:3},{mes:m,sem:4}]);
+  } else if (sem > 0) {
+    weeks = [{mes, sem}];
+  } else {
+    weeks = [{mes,sem:1},{mes,sem:2},{mes,sem:3},{mes,sem:4}];
+  }
+
+  const atend = sumSemanal('Engajamento / Atendimento', weeks);
+  const orcam = sumSemanal('Orçamentos', weeks);
+  const pedid = sumSemanal('Pedidos', weeks);
+  const fat   = sumSemanal('Faturamento', weeks);
+  const cpa   = spend > 0 && pedid.res > 0 ? spend / pedid.res : 0;
 
   // KPIs Meta
   const kpis = [
-    {lbl:'Investimento', val: spend  > 0 ? fmtBRL(spend)          : '—', sub:'Meta Ads no período'},
-    {lbl:'Alcance',      val: reach  > 0 ? fmtN(reach)            : '—', sub:'Pessoas impactadas'},
-    {lbl:'Cliques',      val: clicks > 0 ? fmtN(clicks)           : '—', sub:'Cliques no anúncio'},
-    {lbl:'CPC',          val: cpc    > 0 ? fmtBRL(cpc)            : '—', sub:'Custo por clique'},
-    {lbl:'ROAS',         val: roas   > 0 ? roas.toFixed(2) + 'x'  : '—', sub:'Retorno sobre invest.'},
+    {lbl:'Investimento', val: spend  > 0 ? fmtBRL(spend)         : '—', sub:'Meta Ads no período'},
+    {lbl:'Alcance',      val: reach  > 0 ? fmtN(reach)           : '—', sub:'Pessoas impactadas'},
+    {lbl:'Cliques',      val: clicks > 0 ? fmtN(clicks)          : '—', sub:'Cliques no anúncio'},
+    {lbl:'CPC',          val: cpc    > 0 ? fmtBRL(cpc)           : '—', sub:'Custo por clique'},
+    {lbl:'ROAS',         val: roas   > 0 ? roas.toFixed(2) + 'x' : '—', sub:'Retorno sobre invest.'},
   ];
   const kpisHTML = `
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px;">
@@ -1630,19 +1628,19 @@ function renderMarketing() {
 
   // Funil estimado
   const stages = [
-    {lbl:'Cliques Meta',   val:clicks,    src:'Meta Ads',   col:'#FFA62C'},
-    {lbl:'Atendimentos',   val:atend.res, src:'EZ Semanal', col:'#E07B18'},
-    {lbl:'Orçamentos',     val:orcam.res, src:'Planilha',   col:'#C92B1E'},
-    {lbl:'Pedidos',        val:pedid.res, src:'Planilha',   col:'#9B1F12'},
-    {lbl:'Faturamento',    val:fat.res,   src:'Planilha',   col:'#6B4E10', cur:true},
+    {lbl:'Cliques Meta', val:clicks,    src:'Meta Ads',   col:'#FFA62C'},
+    {lbl:'Atendimentos', val:atend.res, src:'EZ Semanal', col:'#E07B18'},
+    {lbl:'Orçamentos',   val:orcam.res, src:'Planilha',   col:'#C92B1E'},
+    {lbl:'Pedidos',      val:pedid.res, src:'Planilha',   col:'#9B1F12'},
+    {lbl:'Faturamento',  val:fat.res,   src:'Planilha',   col:'#6B4E10', cur:true},
   ];
   const funnelHTML = `
   <div class="card" style="padding:24px;margin-bottom:24px;">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:20px;">Funil estimado do período</div>
-    <div style="display:flex;align-items:stretch;gap:0;">
+    <div style="display:flex;align-items:stretch;">
       ${stages.map((s,i)=>{
-        const prev = i>0 ? stages[i-1].val : null;
-        const cvr  = prev && prev>0 ? ((s.val/prev)*100).toFixed(1)+'%' : '';
+        const prv = i>0 ? stages[i-1].val : null;
+        const cvr = prv && prv>0 ? ((s.val/prv)*100).toFixed(1)+'%' : '';
         const vstr = s.cur ? (s.val>0?fmtBRL(s.val):'—') : (s.val>0?fmtN(s.val):'—');
         return `
         <div style="flex:1;text-align:center;padding:0 10px;${i>0?'border-left:1px solid rgba(180,165,140,0.15);':''}">
@@ -1659,7 +1657,7 @@ function renderMarketing() {
   </div>`;
 
   // CPA estimado
-  const cpaHTML = spend>0 && pedid.res>0 ? `
+  const cpaHTML = cpa > 0 ? `
   <div class="card" style="padding:20px;margin-bottom:24px;display:flex;align-items:center;gap:32px;">
     <div>
       <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:8px;">CPA Estimado</div>
@@ -1710,8 +1708,9 @@ function renderMarketing() {
     </div>
   </div>` : '';
 
-  el.innerHTML = `<div style="padding:28px 0 48px;">${periodoHTML}${kpisHTML}${funnelHTML}${cpaHTML}${campHTML}</div>`;
+  el.innerHTML = `<div style="padding:28px 0 48px;">${kpisHTML}${funnelHTML}${cpaHTML}${campHTML}</div>`;
 }
+
 
 /* ── FILTROS PADRÃO — mês atual (ou anterior nos primeiros 7 dias), todo o mês ── */
 (function(){
