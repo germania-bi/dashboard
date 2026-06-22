@@ -1532,7 +1532,7 @@ function setTab(el){
 /* ══════════════════════════════════════════
    ABA MARKETING & ADS
 ══════════════════════════════════════════ */
-const CAMP_EXCLUIR = ['[FORMS NATIVO] [TROQUE DE COLARINHO]'];
+const CAMP_EXCLUIR = ['[FORMS NATIVO] [TROQUE DE COLARINHO]', 'SUA CASA NOSSO BAR'];
 
 async function loadMetaData() {
   if (metaFetching) return;
