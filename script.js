@@ -18,11 +18,10 @@ let METAS_RAW    = [];
 
 /* ── META ADS ── */
 const META_API = 'https://germania-ads-dashboard-production.up.railway.app';
-let META_INSIGHTS   = null;
-let META_CAMPAIGNS  = [];
-let META_PERIOD     = '';
-let metaLoaded      = false;
-let metaFetching    = false;
+let META_DAILY     = [];
+let META_CAMPAIGNS = [];
+let metaLoaded     = false;
+let metaFetching   = false;
 
 // Fronteiras semanais reais por mês (ano → mês → [fim S1, fim S2, fim S3])
 // S4 vai até o fim do mês. Atualizar mensalmente.
@@ -1533,21 +1532,20 @@ function setTab(el){
 /* ══════════════════════════════════════════
    ABA MARKETING & ADS
 ══════════════════════════════════════════ */
-async function loadMetaData(period) {
-  if (metaFetching && META_PERIOD === period) return;
+async function loadMetaData() {
+  if (metaFetching) return;
   metaFetching = true;
-  META_PERIOD  = period;
   try {
     const [insRes, camRes] = await Promise.all([
-      fetch(`${META_API}/api/insights?period=${period}`).then(r => r.json()),
-      fetch(`${META_API}/api/campaigns?period=${period}`).then(r => r.json())
+      fetch(`${META_API}/api/insights?period=last_90d`).then(r => r.json()),
+      fetch(`${META_API}/api/campaigns?period=last_90d`).then(r => r.json())
     ]);
-    META_INSIGHTS  = insRes.data?.summary || insRes.summary || insRes;
-    META_CAMPAIGNS = camRes.data || (Array.isArray(camRes) ? camRes : (camRes.campaigns || []));
-    console.log('[Meta Ads] loaded period=' + period, META_INSIGHTS);
+    META_DAILY     = insRes.data?.daily || [];
+    META_CAMPAIGNS = camRes.data || [];
+    console.log('[Meta Ads] daily records:', META_DAILY.length, 'campaigns:', META_CAMPAIGNS.length);
   } catch(e) {
     console.warn('[Meta Ads] API error:', e);
-    META_INSIGHTS  = null;
+    META_DAILY = [];
     META_CAMPAIGNS = [];
   }
   metaFetching = false;
@@ -1559,37 +1557,47 @@ function renderMarketing() {
   const el = document.getElementById('marketing-main');
   if (!el) return;
 
-  const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
-  const fmtN   = v => Number(v).toLocaleString('pt-BR');
-
-  // Lê filtro principal (mesmo padrão de renderEZ / renderMetas)
-  const mesRaw = parseInt(document.getElementById('f-mes')?.value);
-  const mes    = mesRaw || new Date().getMonth() + 1;
-  const sem    = parseInt(document.getElementById('f-sem')?.value) || 0;
-  const tri    = parseInt(document.getElementById('f-tri')?.value) || 0;
-
-  // Mapeia filtro → período da Meta API
-  const metaPeriod = sem > 0 ? 'last_7d' : tri > 0 ? 'last_90d' : 'last_30d';
-
-  // Busca se período mudou ou ainda não carregou
-  if (!metaLoaded || META_PERIOD !== metaPeriod) {
-    if (!metaFetching || META_PERIOD !== metaPeriod) loadMetaData(metaPeriod);
+  if (!metaLoaded) {
+    if (!metaFetching) loadMetaData();
     el.innerHTML = `<div style="text-align:center;padding:80px 0;font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--txt-faint);">Carregando dados do Meta Ads…</div>`;
     return;
   }
 
-  if (!META_INSIGHTS) {
+  if (!META_DAILY.length) {
     el.innerHTML = `<div style="text-align:center;padding:80px 0;font-family:'Barlow Condensed',sans-serif;font-size:15px;color:#B82418;">Não foi possível carregar os dados do Meta Ads.</div>`;
     return;
   }
 
-  const ins    = META_INSIGHTS;
-  const spend  = parseFloat(ins.spend  || 0);
-  const reach  = parseInt(ins.reach    || 0);
-  const clicks = parseInt(ins.clicks   || 0);
-  const cpc    = parseFloat(ins.cpc    || 0);
-  const ctr    = parseFloat(ins.ctr    || 0);
-  const roas   = parseFloat(ins.roas   || 0);
+  const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
+  const fmtN   = v => Number(v).toLocaleString('pt-BR');
+
+  // Lê filtro principal
+  const mesRaw = parseInt(document.getElementById('f-mes')?.value);
+  const mes    = mesRaw || new Date().getMonth() + 1;
+  const sem    = parseInt(document.getElementById('f-sem')?.value) || 0;
+  const tri    = parseInt(document.getElementById('f-tri')?.value) || 0;
+  const year   = new Date().getFullYear();
+  const pad    = n => String(n).padStart(2,'0');
+
+  // Filtra daily pelo mesmo período do filtro principal
+  let dailyF = [];
+  if (tri > 0) {
+    const triM = tri===1?[1,2,3]:tri===2?[4,5,6]:tri===3?[7,8,9]:[10,11,12];
+    dailyF = META_DAILY.filter(d => triM.includes(parseInt(d.date.split('-')[1])));
+  } else if (sem > 0) {
+    const {de, ate} = getDateRangeForFilter(mes, sem);
+    dailyF = META_DAILY.filter(d => d.date >= de && d.date <= ate);
+  } else {
+    dailyF = META_DAILY.filter(d => d.date.startsWith(`${year}-${pad(mes)}`));
+  }
+
+  // Agrega métricas dos dias filtrados
+  const spend  = dailyF.reduce((s,d) => s + parseFloat(d.spend||0), 0);
+  const impr   = dailyF.reduce((s,d) => s + parseInt(d.impressions||0), 0);
+  const clicks = dailyF.reduce((s,d) => s + parseInt(d.clicks||0), 0);
+  const cpc    = clicks > 0 ? spend / clicks : 0;
+  const cpm    = impr   > 0 ? (spend / impr) * 1000 : 0;
+  const ctr    = impr   > 0 ? (clicks / impr) * 100 : 0;
 
   // Semanas Chopp via filtro principal
   let weeks = [];
@@ -1610,11 +1618,11 @@ function renderMarketing() {
 
   // KPIs Meta
   const kpis = [
-    {lbl:'Investimento', val: spend  > 0 ? fmtBRL(spend)         : '—', sub:'Meta Ads no período'},
-    {lbl:'Alcance',      val: reach  > 0 ? fmtN(reach)           : '—', sub:'Pessoas impactadas'},
-    {lbl:'Cliques',      val: clicks > 0 ? fmtN(clicks)          : '—', sub:'Cliques no anúncio'},
-    {lbl:'CPC',          val: cpc    > 0 ? fmtBRL(cpc)           : '—', sub:'Custo por clique'},
-    {lbl:'ROAS',         val: roas   > 0 ? roas.toFixed(2) + 'x' : '—', sub:'Retorno sobre invest.'},
+    {lbl:'Investimento', val: spend  > 0 ? fmtBRL(spend)        : '—', sub:'Meta Ads no período'},
+    {lbl:'Impressões',   val: impr   > 0 ? fmtN(impr)           : '—', sub:'Total de impressões'},
+    {lbl:'Cliques',      val: clicks > 0 ? fmtN(clicks)         : '—', sub:'Cliques no anúncio'},
+    {lbl:'CPC',          val: cpc    > 0 ? fmtBRL(cpc)          : '—', sub:'Custo por clique'},
+    {lbl:'CTR',          val: ctr    > 0 ? ctr.toFixed(2) + '%' : '—', sub:'Taxa de clique'},
   ];
   const kpisHTML = `
   <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:24px;">
@@ -1671,36 +1679,36 @@ function renderMarketing() {
     </div>
   </div>` : '';
 
-  // Tabela de campanhas
-  const sorted = [...META_CAMPAIGNS].sort((a,b)=>parseFloat(b.spend||0)-parseFloat(a.spend||0));
+  // Tabela de campanhas (último período disponível via API)
+  const sorted = [...META_CAMPAIGNS].filter(c=>parseFloat(c.spend||0)>0).sort((a,b)=>parseFloat(b.spend||0)-parseFloat(a.spend||0));
   const campHTML = sorted.length ? `
   <div class="card" style="padding:20px;">
-    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:16px;">Campanhas</div>
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:4px;">Campanhas</div>
+    <div style="font-size:11px;color:var(--txt-faint);margin-bottom:16px;font-style:italic;">Últimos 90 dias · ordenadas por investimento</div>
     <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-family:'Barlow Condensed',sans-serif;">
       <thead>
         <tr style="border-bottom:1px solid rgba(180,165,140,0.2);">
-          ${['Campanha','Status','Invest.','Alcance','Cliques','CTR','ROAS'].map((h,i)=>
+          ${['Campanha','Status','Invest.','Impressões','Cliques','CTR'].map((h,i)=>
             `<th style="text-align:${i===0?'left':'right'};font-size:11px;font-weight:700;letter-spacing:0.8px;text-transform:uppercase;color:var(--txt-faint);padding:0 8px 10px${i===0?' 0':''};">${h}</th>`
           ).join('')}
         </tr>
       </thead>
       <tbody>
         ${sorted.slice(0,12).map(c=>{
-          const sp=parseFloat(c.spend||0), rc=parseInt(c.reach||0);
-          const cl=parseInt(c.clicks||0), ct=parseFloat(c.ctr||0), ro=parseFloat(c.roas||0);
+          const sp=parseFloat(c.spend||0), rc=parseInt(c.impressions||0);
+          const cl=parseInt(c.clicks||0), ct=parseFloat(c.ctr||0);
           const on=(c.status||'').toUpperCase()==='ACTIVE';
           return `
           <tr style="border-bottom:1px solid rgba(180,165,140,0.08);">
-            <td style="padding:10px 8px 10px 0;font-size:13px;font-weight:600;color:var(--txt);max-width:240px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.name||'—'}</td>
+            <td style="padding:10px 8px 10px 0;font-size:13px;font-weight:600;color:var(--txt);max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${c.name||''}">${c.name||'—'}</td>
             <td style="padding:10px 8px;text-align:right;">
               <span style="font-size:10px;font-weight:700;letter-spacing:0.5px;text-transform:uppercase;padding:2px 8px;border-radius:20px;color:${on?'#1E7A42':'#9BA8B0'};background:${on?'rgba(30,122,66,0.1)':'rgba(155,168,176,0.1)'};">${on?'Ativa':'Pausada'}</span>
             </td>
-            <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${sp>0?fmtBRL(sp):'—'}</td>
+            <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${fmtBRL(sp)}</td>
             <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${rc>0?fmtN(rc):'—'}</td>
             <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${cl>0?fmtN(cl):'—'}</td>
             <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${ct>0?ct.toFixed(2)+'%':'—'}</td>
-            <td style="padding:10px 8px;text-align:right;font-size:13px;color:var(--txt);">${ro>0?ro.toFixed(2)+'x':'—'}</td>
           </tr>`;
         }).join('')}
       </tbody>
