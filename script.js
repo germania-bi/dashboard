@@ -1532,23 +1532,19 @@ function setTab(el){
 /* ══════════════════════════════════════════
    ABA MARKETING & ADS
 ══════════════════════════════════════════ */
+const CAMP_EXCLUIR = ['[FORMS NATIVO] [TROQUE DE COLARINHO]'];
+
 async function loadMetaData() {
   if (metaFetching) return;
   metaFetching = true;
   try {
-    // last_30d tem dados recentes (mês atual); last_90d para campanhas históricas
-    const [ins30, ins90, camRes] = await Promise.all([
+    const [insRes, camRes] = await Promise.all([
       fetch(META_API + '/api/insights?period=last_30d').then(r => r.json()),
-      fetch(META_API + '/api/insights?period=last_90d').then(r => r.json()),
-      fetch(META_API + '/api/campaigns?period=last_90d').then(r => r.json())
+      fetch(META_API + '/api/campaigns?period=last_30d').then(r => r.json())
     ]);
-    // Mescla daily de ambos os períodos (sem duplicatas, por data)
-    const d30 = ins30.data?.daily || [];
-    const d90 = ins90.data?.daily || [];
-    const seen = new Set(d30.map(d => d.date));
-    META_DAILY = [...d30, ...d90.filter(d => !seen.has(d.date))].sort((a,b) => a.date < b.date ? -1 : 1);
+    META_DAILY     = insRes.data?.daily || [];
     META_CAMPAIGNS = camRes.data || [];
-    console.log('[Meta Ads] daily records:', META_DAILY.length, 'campaigns:', META_CAMPAIGNS.length);
+    console.log('[Meta Ads] daily:', META_DAILY.length, 'campaigns:', META_CAMPAIGNS.length);
   } catch(e) {
     console.warn('[Meta Ads] API error:', e);
     META_DAILY = [];
@@ -1597,10 +1593,19 @@ function renderMarketing() {
     dailyF = META_DAILY.filter(d => d.date.startsWith(`${year}-${pad(mes)}`));
   }
 
-  // Agrega métricas dos dias filtrados
-  const spend  = dailyF.reduce((s,d) => s + parseFloat(d.spend||0), 0);
-  const impr   = dailyF.reduce((s,d) => s + parseInt(d.impressions||0), 0);
-  const clicks = dailyF.reduce((s,d) => s + parseInt(d.clicks||0), 0);
+  // Ratio de exclusão: campanhas Troque de Colarinho excluídas do agregado
+  const isExcl    = c => CAMP_EXCLUIR.some(ex => (c.name||'').includes(ex));
+  const totalCamp = META_CAMPAIGNS.reduce((s,c) => s + parseFloat(c.spend||0), 0);
+  const inclCamp  = META_CAMPAIGNS.filter(c => !isExcl(c)).reduce((s,c) => s + parseFloat(c.spend||0), 0);
+  const inclRatio = totalCamp > 0 ? inclCamp / totalCamp : 1;
+
+  // Agrega métricas dos dias filtrados, ajustadas pelo ratio
+  const spendRaw = dailyF.reduce((s,d) => s + parseFloat(d.spend||0), 0);
+  const imprRaw  = dailyF.reduce((s,d) => s + parseInt(d.impressions||0), 0);
+  const clkRaw   = dailyF.reduce((s,d) => s + parseInt(d.clicks||0), 0);
+  const spend  = spendRaw * inclRatio;
+  const impr   = Math.round(imprRaw * inclRatio);
+  const clicks = Math.round(clkRaw  * inclRatio);
   const cpc    = clicks > 0 ? spend / clicks : 0;
   const cpm    = impr   > 0 ? (spend / impr) * 1000 : 0;
   const ctr    = impr   > 0 ? (clicks / impr) * 100 : 0;
@@ -1686,7 +1691,7 @@ function renderMarketing() {
   </div>` : '';
 
   // Tabela de campanhas (último período disponível via API)
-  const sorted = [...META_CAMPAIGNS].filter(c=>parseFloat(c.spend||0)>0).sort((a,b)=>parseFloat(b.spend||0)-parseFloat(a.spend||0));
+  const sorted = [...META_CAMPAIGNS].filter(c=>parseFloat(c.spend||0)>0 && !isExcl(c)).sort((a,b)=>parseFloat(b.spend||0)-parseFloat(a.spend||0));
   const campHTML = sorted.length ? `
   <div class="card" style="padding:20px;">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:4px;">Campanhas</div>
