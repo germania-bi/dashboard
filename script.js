@@ -1542,8 +1542,8 @@ async function loadMetaData(period) {
       fetch(`${META_API}/api/insights?period=${period}`).then(r => r.json()),
       fetch(`${META_API}/api/campaigns?period=${period}`).then(r => r.json())
     ]);
-    META_INSIGHTS  = insRes.summary || insRes;
-    META_CAMPAIGNS = Array.isArray(camRes) ? camRes : (camRes.campaigns || []);
+    META_INSIGHTS  = insRes.data?.summary || insRes.summary || insRes;
+    META_CAMPAIGNS = camRes.data || (Array.isArray(camRes) ? camRes : (camRes.campaigns || []));
     console.log('[Meta Ads] loaded period=' + period, META_INSIGHTS);
   } catch(e) {
     console.warn('[Meta Ads] API error:', e);
