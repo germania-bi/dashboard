@@ -17,7 +17,7 @@ let EZ_TICKETS   = [];
 let METAS_RAW    = [];
 
 /* ── META ADS ── */
-const META_API = 'https://germania-ads-dashboard-production.up.railway.app';
+const META_API = 'https://ads-germania.vercel.app';
 let META_DAILY     = [];
 let META_CAMPAIGNS = [];
 let metaLoaded     = false;
