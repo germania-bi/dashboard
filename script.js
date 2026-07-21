@@ -8,13 +8,15 @@ const BASE_PERF = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vT-tsnKujVrag
 const SHEETS = {
   SEMANAL:    BASE_PERF + '0',       // nova planilha de performance
   EZ_TICKETS: BASE_EZ   + '351627180',
-  METAS:      BASE_EZ   + '956110426'
+  METAS:      BASE_EZ   + '956110426',
+  RD_VENDAS:  BASE_EZ   + '2003406053'  // funil bruto RD Station
 };
 
 /* ── DADOS EM MEMÓRIA ── */
 let SEMANAL_RAW  = {};
 let EZ_TICKETS   = [];
 let METAS_RAW    = [];
+let RD_DEALS     = [];
 
 /* ── META ADS ── */
 const META_API = 'https://germania-ads-backend.vercel.app';
@@ -202,6 +204,29 @@ function processEZTickets(rows) {
       RespostaCSAT: (r['Resposta_Aberta+ CSAT'] || r['Resposta_Aberta+_CSAT'] || r['RespostaAberta'] || '').trim()
     };
   }).filter(r => r.DataStr && !EZ_EXCLUIR.includes(r.Agente));
+}
+
+/* ── PARSER RD STATION (FUNIL DE VENDAS) ── */
+const RD_ESTADOS_VALIDOS = ['Vendida', 'Em Andamento', 'Perdida'];
+function processRDVendas(rows) {
+  return rows.map(r => {
+    const d = (r['Data de criação'] || '').trim();
+    let dataStr = '';
+    if (/^\d{2}\/\d{2}\/\d{4}/.test(d)) {
+      const [dia, mes, ano] = d.split('/');
+      dataStr = `${ano}-${mes}-${dia}`;
+    }
+    return {
+      DataStr: dataStr,
+      Etapa: (r['Etapa'] || '').trim(),
+      Estado: (r['Estado'] || '').trim(),
+      MotivoPerda: (r['Motivo de Perda'] || '').trim(),
+      Valor: parseNum(r['Valor Único']),
+      Responsavel: (r['Responsável'] || '').trim(),
+      Cidade: (r['Unidades de atendimento'] || '').trim(),
+      Fonte: (r['Fonte'] || '').trim()
+    };
+  }).filter(r => r.DataStr && RD_ESTADOS_VALIDOS.includes(r.Estado));
 }
 
 
@@ -608,6 +633,7 @@ async function loadData() {
     await Promise.all([
       fetch(SHEETS.SEMANAL).then(r=>r.text()).then(t=>{ SEMANAL_RAW = parseSemanal(t); }),
       fetch(SHEETS.EZ_TICKETS).then(r=>r.text()).then(t=>{ EZ_TICKETS = processEZTickets(parseCSV(t)); }),
+      fetch(SHEETS.RD_VENDAS).then(r=>r.text()).then(t=>{ RD_DEALS = processRDVendas(parseCSV(t)); }),
       fetch(SHEETS.METAS).then(r=>r.text()).then(t=>{ METAS_RAW = processMetasSheet(parseCSV(t)); }),
     ]);
   } catch(e) {
@@ -1071,9 +1097,11 @@ function go(){
 
   // Atualiza abas ativas ao filtrar
   ezRendered=false;
+  rdRendered=false;
   if(document.getElementById('tab-ez')?.classList.contains('active'))renderEZ();
   if(document.getElementById('tab-metas')?.classList.contains('active'))renderMetas();
   if(document.getElementById('tab-marketing')?.classList.contains('active'))renderMarketing();
+  if(document.getElementById('tab-rd')?.classList.contains('active'))renderRD();
 
   // Badge de estado ativo
   {
@@ -1526,6 +1554,7 @@ function setTab(el){
   else if(tabName==='Performance Atendimento'){document.getElementById('tab-ez').classList.add('active');renderEZ();}
   else if(tabName==='Gestão de Metas'){document.getElementById('tab-metas').classList.add('active');renderMetas();}
   else if(tabName==='Marketing & Ads'){document.getElementById('tab-marketing').classList.add('active');renderMarketing();}
+  else if(tabName==='Funil RD'){document.getElementById('tab-rd').classList.add('active');renderRD();}
   window.scrollTo(0,0);
 }
 
@@ -1728,6 +1757,266 @@ function renderMarketing() {
   </div>` : '';
 
   el.innerHTML = `<div style="padding:28px 0 48px;">${kpisHTML}${funnelHTML}${cpaHTML}${campHTML}</div>`;
+}
+
+
+/* ══════════════════════════════════════════
+   ABA FUNIL RD (RD Station — funil bruto)
+══════════════════════════════════════════ */
+let rdRendered=false;
+function renderRD(){
+  if(rdRendered)return;
+  rdRendered=true;
+  const el=document.getElementById('rd-main');
+  if(!el)return;
+
+  const fmtBRL = v => 'R$ ' + Math.round(v).toLocaleString('pt-BR');
+  const fmtN   = v => Number(v).toLocaleString('pt-BR');
+
+  const mesRaw = parseInt(document.getElementById('f-mes')?.value);
+  const mes    = mesRaw || (new Date().getMonth()+1);
+  const sem    = parseInt(document.getElementById('f-sem')?.value) || 0;
+  const tri    = parseInt(document.getElementById('f-tri')?.value) || 0;
+  const year   = new Date().getFullYear();
+  const pad    = n => String(n).padStart(2,'0');
+
+  let de, ate;
+  if (mesRaw === 0) {
+    de = `${year}-01-01`; ate = `${year}-12-31`;
+  } else if (tri > 0) {
+    const triM = tri===1?[1,2,3]:tri===2?[4,5,6]:tri===3?[7,8,9]:[10,11,12];
+    const lastDay = new Date(year, triM[2], 0).getDate();
+    de = `${year}-${pad(triM[0])}-01`;
+    ate = `${year}-${pad(triM[2])}-${pad(lastDay)}`;
+  } else {
+    ({de, ate} = getDateRangeForFilter(mes, sem));
+  }
+
+  const data = RD_DEALS.filter(d => d.DataStr >= de && d.DataStr <= ate);
+
+  if (!data.length) {
+    el.innerHTML = `<div style="text-align:center;padding:80px 0;font-family:'Barlow Condensed',sans-serif;font-size:15px;color:var(--txt-faint);">Sem negociações no período selecionado.</div>`;
+    return;
+  }
+
+  const vendidas   = data.filter(d=>d.Estado==='Vendida');
+  const perdidas   = data.filter(d=>d.Estado==='Perdida');
+  const andamento  = data.filter(d=>d.Estado==='Em Andamento');
+  const fechadas   = vendidas.length + perdidas.length;
+  const taxaConv   = fechadas ? (vendidas.length/fechadas*100) : 0;
+  const valorVendido = vendidas.reduce((s,d)=>s+d.Valor,0);
+  const valorPerdido = perdidas.reduce((s,d)=>s+d.Valor,0);
+  const convColor  = taxaConv>=40?SC.green:taxaConv>=25?SC.yellow:SC.red;
+
+  // 1. KPIs
+  const kpis = [
+    {lbl:'Negociações', val:fmtN(data.length), sub:`${fmtN(vendidas.length)} vendidas · ${fmtN(perdidas.length)} perdidas · ${fmtN(andamento.length)} em andamento`, col:'var(--txt)'},
+    {lbl:'Taxa de Conversão', val:taxaConv.toFixed(1)+'%', sub:'Vendida ÷ (Vendida + Perdida)', col:convColor},
+    {lbl:'Valor Vendido', val:fmtBRL(valorVendido), sub:'Soma das negociações fechadas', col:'var(--txt)'},
+    {lbl:'Valor em Risco', val:fmtBRL(valorPerdido), sub:'Soma das negociações perdidas', col:SC.red},
+  ];
+  const kpisHTML = `
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:24px;">
+    ${kpis.map(k=>`
+      <div class="card" style="padding:18px 20px;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--gold);margin-bottom:8px;">${k.lbl}</div>
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:30px;font-weight:900;color:${k.col};line-height:1;margin-bottom:6px;">${k.val}</div>
+        <div style="font-size:11px;color:var(--txt-faint);">${k.sub}</div>
+      </div>`).join('')}
+  </div>`;
+
+  // 2. Funil por etapa (composição vendida/perdida/andamento por etapa)
+  const etapaMap={};
+  data.forEach(d=>{
+    const et=d.Etapa||'Sem etapa';
+    if(!etapaMap[et])etapaMap[et]={total:0,vendida:0,perdida:0,andamento:0};
+    etapaMap[et].total++;
+    if(d.Estado==='Vendida')etapaMap[et].vendida++;
+    else if(d.Estado==='Perdida')etapaMap[et].perdida++;
+    else etapaMap[et].andamento++;
+  });
+  const etapaSorted=Object.entries(etapaMap).sort((a,b)=>b[1].total-a[1].total);
+  const funilHTML=`
+  <div class="card" style="padding:24px;margin-bottom:24px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:20px;">Onde o funil está — por etapa</div>
+    ${etapaSorted.map(([et,c])=>{
+      const pctV=c.total?c.vendida/c.total*100:0;
+      const pctP=c.total?c.perdida/c.total*100:0;
+      const pctA=c.total?c.andamento/c.total*100:0;
+      return `
+      <div style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:5px;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--txt);">${et}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--txt-faint);">${fmtN(c.total)} negociações · ${fmtN(c.perdida)} perdidas (${pctP.toFixed(0)}%)</span>
+        </div>
+        <div style="display:flex;height:13px;border-radius:6px;overflow:hidden;background:rgba(180,165,140,0.10);">
+          <div style="width:${pctV.toFixed(1)}%;background:${SC.green};"></div>
+          <div style="width:${pctP.toFixed(1)}%;background:${SC.red};"></div>
+          <div style="width:${pctA.toFixed(1)}%;background:${SC.gray};"></div>
+        </div>
+      </div>`;
+    }).join('')}
+    <div style="margin-top:12px;font-size:11px;color:var(--txt-faint);display:flex;gap:16px;">
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SC.green};margin-right:4px;"></span>Vendida</span>
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SC.red};margin-right:4px;"></span>Perdida</span>
+      <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${SC.gray};margin-right:4px;"></span>Em andamento</span>
+    </div>
+  </div>`;
+
+  // 3. Conversão por responsável
+  const respMap={};
+  data.forEach(d=>{
+    if(!d.Responsavel)return;
+    if(!respMap[d.Responsavel])respMap[d.Responsavel]={total:0,vendida:0,perdida:0,valorV:0,valorP:0};
+    const r=respMap[d.Responsavel];
+    r.total++;
+    if(d.Estado==='Vendida'){r.vendida++;r.valorV+=d.Valor;}
+    else if(d.Estado==='Perdida'){r.perdida++;r.valorP+=d.Valor;}
+  });
+  const agentesArr=Object.entries(respMap).map(([nome,r])=>{
+    const fech=r.vendida+r.perdida;
+    return {nome,...r,fech,taxa:fech?r.vendida/fech*100:null};
+  }).sort((a,b)=>b.total-a.total);
+  const agentesHTML=`
+  <div class="card" style="padding:20px;margin-bottom:24px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:14px;">Conversão por Responsável</div>
+    <div style="overflow-x:auto;">
+    <table class="ez-table">
+      <thead><tr><th>Responsável</th><th>Negociações</th><th>Vendida</th><th>Perdida</th><th>Taxa</th><th>Valor Vendido</th><th>Valor Perdido</th></tr></thead>
+      <tbody>
+        ${agentesArr.map(a=>{
+          const taxaStr=a.taxa===null?'—':a.taxa.toFixed(1)+'%';
+          const taxaColor=a.taxa===null?'var(--txt-faint)':a.taxa>=40?SC.green:a.taxa>=25?SC.yellow:SC.red;
+          const lowN=a.fech>0&&a.fech<50;
+          const warn=lowN?` <span title="Amostra pequena (${a.fech} negociações fechadas) — taxa pouco confiável" style="cursor:help;color:${SC.yellow};">⚠</span>`:'';
+          return `<tr>
+            <td class="agent">${a.nome}</td>
+            <td class="num">${fmtN(a.total)}</td>
+            <td class="num">${fmtN(a.vendida)}</td>
+            <td class="num">${fmtN(a.perdida)}</td>
+            <td style="color:${taxaColor};font-weight:700;">${taxaStr}${warn}</td>
+            <td class="num">${fmtBRL(a.valorV)}</td>
+            <td class="num">${fmtBRL(a.valorP)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>`;
+
+  // 4. Ranking de cidades
+  const cidadeMap={};
+  let semCidade=0;
+  data.forEach(d=>{
+    if(!d.Cidade){semCidade++;return;}
+    cidadeMap[d.Cidade]=(cidadeMap[d.Cidade]||0)+1;
+  });
+  const cidadeTop=Object.entries(cidadeMap).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  const maxCidade=cidadeTop.length?cidadeTop[0][1]:1;
+  const pctSemCidade=data.length?(semCidade/data.length*100):0;
+  const cidadeColors=['#FFA62C','#E07B18','#C96010','#F5C35A','#D4881A','#B86A0C','#FFBD5A','#E8B840','#C9861A','#B87A2A'];
+  const cidadesHTML=`
+  <div class="card" style="padding:20px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:14px;">Top 10 Cidades · Volume</div>
+    ${cidadeTop.length?cidadeTop.map(([cidade,count],i)=>{
+      const pct=maxCidade?count/maxCidade*100:0;
+      return `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--txt);">${cidade}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--txt-faint);">${fmtN(count)}</span>
+        </div>
+        <div style="height:10px;background:rgba(180,165,140,0.10);border-radius:5px;overflow:hidden;">
+          <div style="height:100%;width:${pct.toFixed(1)}%;background:${cidadeColors[i%cidadeColors.length]};border-radius:5px;"></div>
+        </div>
+      </div>`;
+    }).join(''):'<div style="font-size:12px;color:var(--txt-faint);">Sem cidade informada no período.</div>'}
+    <div style="margin-top:8px;font-size:11px;color:var(--txt-faint);font-style:italic;">Cidade não informada em ${pctSemCidade.toFixed(0)}% das negociações do período.</div>
+  </div>`;
+
+  // 5. Motivo de perda + badge de qualidade
+  const motivoMap={};
+  perdidas.forEach(d=>{
+    const m=d.MotivoPerda||'Sem motivo';
+    motivoMap[m]=(motivoMap[m]||0)+1;
+  });
+  const motivoSort=Object.entries(motivoMap).sort((a,b)=>b[1]-a[1]);
+  const semClassif=(motivoMap['Outros']||0)+(motivoMap['Sem motivo']||0)+(motivoMap['Nada']||0);
+  const pctSemClassif=perdidas.length?semClassif/perdidas.length*100:0;
+  const motivoColors=['#FFA62C','#E07B18','#C96010','#F5C35A','#D4881A','#B86A0C'];
+  const motivoHTML=`
+  <div class="card" style="padding:20px;">
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;gap:12px;">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);">Motivo de Perda</div>
+      ${perdidas.length?`<div style="text-align:right;flex-shrink:0;">
+        <div style="font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:900;color:${pctSemClassif>=60?SC.red:pctSemClassif>=30?SC.yellow:SC.green};">${pctSemClassif.toFixed(0)}%</div>
+        <div style="font-size:10px;color:var(--txt-faint);max-width:150px;">sem motivo real classificado</div>
+      </div>`:''}
+    </div>
+    ${motivoSort.length?motivoSort.map(([m,count],i)=>{
+      const pct=perdidas.length?count/perdidas.length*100:0;
+      return `
+      <div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;color:var(--txt);">${m}</span>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:12px;color:var(--txt-faint);">${fmtN(count)} · ${pct.toFixed(0)}%</span>
+        </div>
+        <div style="height:10px;background:rgba(180,165,140,0.10);border-radius:5px;overflow:hidden;">
+          <div style="height:100%;width:${pct.toFixed(1)}%;background:${motivoColors[i%motivoColors.length]};border-radius:5px;"></div>
+        </div>
+      </div>`;
+    }).join(''):'<div style="font-size:12px;color:var(--txt-faint);">Sem negociações perdidas no período.</div>'}
+    <div style="margin-top:8px;font-size:11px;color:var(--txt-faint);font-style:italic;">"Outros"/"Nada" não é diagnóstico de causa — é lacuna de preenchimento do time no RD Station.</div>
+  </div>`;
+
+  // 6. Série mensal (histórico completo, não filtrado — para comparar mês a mês)
+  const MNOMES=['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const mesMap={};
+  RD_DEALS.forEach(d=>{
+    const m=d.DataStr.slice(0,7);
+    if(!mesMap[m])mesMap[m]={total:0,vendida:0,perdida:0,valorV:0,valorP:0};
+    const mm=mesMap[m];
+    mm.total++;
+    if(d.Estado==='Vendida'){mm.vendida++;mm.valorV+=d.Valor;}
+    else if(d.Estado==='Perdida'){mm.perdida++;mm.valorP+=d.Valor;}
+  });
+  const mesesOrd=Object.keys(mesMap).sort();
+  const mensalHTML=`
+  <div class="card" style="padding:20px;">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:14px;">Série Mensal · Histórico Completo</div>
+    <div style="overflow-x:auto;">
+    <table class="ez-table">
+      <thead><tr><th>Mês</th><th>Negociações</th><th>Vendida</th><th>Perdida</th><th>Taxa</th><th>Valor Vendido</th><th>Valor Perdido</th></tr></thead>
+      <tbody>
+        ${mesesOrd.map(m=>{
+          const mm=mesMap[m];
+          const fech=mm.vendida+mm.perdida;
+          const taxa=fech?mm.vendida/fech*100:null;
+          const taxaStr=taxa===null?'—':taxa.toFixed(1)+'%';
+          const taxaColor=taxa===null?'var(--txt-faint)':taxa>=40?SC.green:taxa>=25?SC.yellow:SC.red;
+          const [ano,mesN]=m.split('-');
+          return `<tr>
+            <td class="agent">${MNOMES[parseInt(mesN)]}/${ano.slice(2)}</td>
+            <td class="num">${fmtN(mm.total)}</td>
+            <td class="num">${fmtN(mm.vendida)}</td>
+            <td class="num">${fmtN(mm.perdida)}</td>
+            <td style="color:${taxaColor};font-weight:700;">${taxaStr}</td>
+            <td class="num">${fmtBRL(mm.valorV)}</td>
+            <td class="num">${fmtBRL(mm.valorP)}</td>
+          </tr>`;
+        }).join('')}
+      </tbody>
+    </table>
+    </div>
+  </div>`;
+
+  el.innerHTML = `<div style="padding:28px 0 48px;">
+    ${kpisHTML}
+    ${funilHTML}
+    ${agentesHTML}
+    <div class="row" style="grid-template-columns:1fr 1fr;margin-bottom:24px;">${cidadesHTML}${motivoHTML}</div>
+    ${mensalHTML}
+  </div>`;
 }
 
 
