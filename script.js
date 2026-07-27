@@ -1699,8 +1699,8 @@ async function loadMetaData() {
   metaFetching = true;
   try {
     const [insRes, camRes] = await Promise.all([
-      fetch(META_API + '/api/insights?period=last_30d').then(r => r.json()),
-      fetch(META_API + '/api/campaigns?period=last_30d').then(r => r.json())
+      fetch(META_API + '/api/insights?period=last_90d').then(r => r.json()),
+      fetch(META_API + '/api/campaigns?period=last_90d').then(r => r.json())
     ]);
     META_DAILY     = insRes.data?.daily || [];
     META_CAMPAIGNS = camRes.data || [];
@@ -1743,7 +1743,10 @@ function renderMarketing() {
 
   // Filtra daily pelo mesmo período do filtro principal
   let dailyF = [];
-  if (tri > 0) {
+  if (mesRaw === 0) {
+    // Ano completo: usa tudo que a API trouxe (hoje, últimos 90 dias — não existe endpoint de ano inteiro)
+    dailyF = META_DAILY;
+  } else if (tri > 0) {
     const triM = tri===1?[1,2,3]:tri===2?[4,5,6]:tri===3?[7,8,9]:[10,11,12];
     dailyF = META_DAILY.filter(d => triM.includes(parseInt(d.date.split('-')[1])));
   } else if (sem > 0) {
@@ -1772,7 +1775,9 @@ function renderMarketing() {
 
   // Semanas Chopp via filtro principal
   let weeks = [];
-  if (tri > 0) {
+  if (mesRaw === 0) {
+    [1,2,3,4,5,6,7,8,9,10,11,12].forEach(m => [1,2,3,4].forEach(s => weeks.push({mes:m, sem:s})));
+  } else if (tri > 0) {
     const meses = tri===1?[1,2,3]:tri===2?[4,5,6]:tri===3?[7,8,9]:[10,11,12];
     weeks = meses.flatMap(m => [{mes:m,sem:1},{mes:m,sem:2},{mes:m,sem:3},{mes:m,sem:4}]);
   } else if (sem > 0) {
@@ -1819,7 +1824,8 @@ function renderMarketing() {
     <div style="display:flex;align-items:stretch;">
       ${stages.map((s,i)=>{
         const prv = i>0 ? stages[i-1].val : null;
-        const cvr = prv && prv>0 ? ((s.val/prv)*100).toFixed(1)+'%' : '';
+        // sem "conversão" pra estágio em R$ (Faturamento) — é valor monetário, não contagem, então a razão não é uma taxa
+        const cvr = (prv && prv>0 && !s.cur) ? ((s.val/prv)*100).toFixed(1)+'%' : '';
         const vstr = s.cur ? (s.val>0?fmtBRL(s.val):'—') : (s.val>0?fmtN(s.val):'—');
         return `
         <div style="flex:1;text-align:center;padding:0 10px;${i>0?'border-left:1px solid rgba(180,165,140,0.15);':''}">
