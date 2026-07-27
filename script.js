@@ -30,6 +30,7 @@ const SEM_FRONTEIRAS = {
   2026: {
     4: [11, 18, 25],  // Abril:  S1 1-11 | S2 12-18 | S3 19-25 | S4 26-30
     5: [ 9, 16, 23],  // Maio:   S1 1-9  | S2 10-16 | S3 17-23 | S4 24-31
+    7: [ 5, 12, 19],  // Julho:  S1 1-5  | S2 6-12  | S3 13-19 | S4 20-31
   }
 };
 
@@ -770,8 +771,8 @@ function renderTrend(id, weeks, fmtVal, fmtAxis){
   const wrap=document.getElementById(id); if(!wrap) return;
   wrap.innerHTML='';
   const cs=getComputedStyle(document.documentElement);
-  const cGold=(cs.getPropertyValue('--gold')||'#C8941A').trim();
-  const cGoldLt=(cs.getPropertyValue('--gold-lt')||'#E8B840').trim();
+  const cLine=(cs.getPropertyValue('--trend-blue')||'#3D6490').trim();
+  const cLineLt=(cs.getPropertyValue('--trend-blue-lt')||'#7FA5C9').trim();
   const cFaint=(cs.getPropertyValue('--txt-faint')||'#A89870').trim();
 
   if(!weeks.some(w=>w.atual!=null||w.anoAnt!=null)){
@@ -817,13 +818,13 @@ function renderTrend(id, weeks, fmtVal, fmtAxis){
   const curPath=curPts.length?('M'+curPts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' L')):'';
   const curDots=curPts.map((p,i)=>{
     const isLast=i===curPts.length-1;
-    return '<circle class="tr-dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(isLast?6:4.5)+'" fill="'+cGold+'" stroke="white" stroke-width="2" style="cursor:pointer;" data-v="'+fmtVal(p.v)+varStr(p.v,p.ant)+'" data-l="'+p.l+' · 2026"/>';
+    return '<circle class="tr-dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(isLast?6:4.5)+'" fill="'+cLine+'" stroke="white" stroke-width="2" style="cursor:pointer;" data-v="'+fmtVal(p.v)+varStr(p.v,p.ant)+'" data-l="'+p.l+' · 2026"/>';
   }).join('');
   const curLbls=curPts.map((p,i)=>{
     if(i!==curPts.length-1) return '';
     // âncora conforme a posição real do ponto no eixo — evita colidir com o eixo Y quando é o primeiro ponto
     const anchor = p.idx===0 ? 'start' : p.idx===n-1 ? 'end' : 'middle';
-    return '<text x="'+p.x.toFixed(1)+'" y="'+(p.y-13).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="14" font-weight="800" fill="'+cGold+'">'+fmtVal(p.v)+'</text>';
+    return '<text x="'+p.x.toFixed(1)+'" y="'+(p.y-13).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="14" font-weight="800" fill="'+cLine+'">'+fmtVal(p.v)+'</text>';
   }).join('');
 
   let projPath='',projEndDot='';
@@ -833,7 +834,7 @@ function renderTrend(id, weeks, fmtVal, fmtAxis){
     projPath='M'+projPts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' L');
     const last=projPts[projPts.length-1];
     const holeFill=document.documentElement.getAttribute('data-theme')==='dark'?'#261E12':'#FFFFFF';
-    projEndDot='<circle cx="'+last.x.toFixed(1)+'" cy="'+last.y.toFixed(1)+'" r="4.5" fill="'+holeFill+'" stroke="'+cGoldLt+'" stroke-width="2" stroke-dasharray="2,2"/>';
+    projEndDot='<circle cx="'+last.x.toFixed(1)+'" cy="'+last.y.toFixed(1)+'" r="4.5" fill="'+holeFill+'" stroke="'+cLineLt+'" stroke-width="2" stroke-dasharray="2,2"/>';
   }
 
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
@@ -842,8 +843,8 @@ function renderTrend(id, weeks, fmtVal, fmtAxis){
   svg.style.display='block';
   svg.innerHTML=gridSvg
     +(anoPath?'<path d="'+anoPath+'" fill="none" stroke="'+cFaint+'" stroke-width="2" stroke-dasharray="5,4" stroke-linecap="round"/>':'')
-    +(projPath?'<path d="'+projPath+'" fill="none" stroke="'+cGoldLt+'" stroke-width="2" stroke-dasharray="1,4" stroke-linecap="round"/>':'')
-    +(curPath?'<path d="'+curPath+'" fill="none" stroke="'+cGold+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>':'')
+    +(projPath?'<path d="'+projPath+'" fill="none" stroke="'+cLineLt+'" stroke-width="2" stroke-dasharray="1,4" stroke-linecap="round"/>':'')
+    +(curPath?'<path d="'+curPath+'" fill="none" stroke="'+cLine+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>':'')
     +anoDots+curDots+projEndDot+curLbls+xLbls;
 
   const oldTip=document.querySelector('.sp-tip[data-id="'+id+'"]');
@@ -1062,59 +1063,46 @@ function go(){
     }
   }
 
-  // Tendência (Faturamento ou Litros, via interruptor) — full width: 2026 real x 2025 (mesmo período) x projeção pelo ritmo do período
+  // Tendência (Faturamento ou Litros, via interruptor) — full width, visão anual fixa (Jan-Dez):
+  // 2026 real até o mês corrente x 2025 x projeção até dezembro pelo ritmo médio já feito em 2026.
+  // Independe do filtro de mês/semana/trimestre — é sempre o retrato do ano inteiro.
   {
-    const trendRow = document.getElementById('row-trend');
-    if (mesRaw === 0) {
-      // Ano completo: 12 meses já fecham o comparativo, projeção semanal não se aplica aqui — esconde, mesmo tratamento das sparklines.
-      if (trendRow) trendRow.style.display = 'none';
-    } else {
-      if (trendRow) trendRow.style.display = '';
-      const isLitros = trendMetric === 'litros';
-      const indKey = isLitros ? 'Litros vendidos' : 'Faturamento';
-      const fmtVal = isLitros ? (v=>fmt(Math.round(v))+'L') : fR;
-      const fmtAxis = isLitros ? (v=>fmt(Math.round(v))+'L') : (v=>'R$'+Math.round(v/1000)+'k');
-      const fmtTotal = v => isLitros ? fmt(Math.round(v))+' L' : 'R$ '+fmt(Math.round(v));
-      const titleEl = document.getElementById('trend-title');
-      if (titleEl) titleEl.textContent = 'Tendência de ' + (isLitros ? 'Litros' : 'Faturamento');
+    const isLitros = trendMetric === 'litros';
+    const indKey = isLitros ? 'Litros vendidos' : 'Faturamento';
+    const fmtVal = isLitros ? (v=>fmt(Math.round(v))+'L') : fR;
+    const fmtAxis = isLitros ? (v=>fmt(Math.round(v))+'L') : (v=>'R$'+Math.round(v/1000)+'k');
+    const fmtTotal = v => isLitros ? fmt(Math.round(v))+' L' : 'R$ '+fmt(Math.round(v));
+    const titleEl = document.getElementById('trend-title');
+    if (titleEl) titleEl.textContent = 'Tendência de ' + (isLitros ? 'Litros' : 'Faturamento');
 
-      const MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-      let weeks;
-      if (tri && TRI_MESES[tri]) {
-        weeks = TRI_MESES[tri].map(m => {
-          const atualSum = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.res||0),0);
-          const antSum   = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.anoAnt||0),0);
-          return { l: MNAMES[m], atual: atualSum>0?atualSum:null, anoAnt: antSum>0?antSum:null };
-        });
+    const MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const months = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
+      const atualSum = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.res||0),0);
+      const antSum   = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.anoAnt||0),0);
+      return { l: MNAMES[m], atual: atualSum>0?atualSum:null, anoAnt: antSum>0?antSum:null };
+    });
+    requestAnimationFrame(()=> renderTrend('trend-chart', months, fmtVal, fmtAxis));
+
+    const completedM = months.filter(w=>w.atual!=null);
+    const totalAtual = completedM.reduce((a,w)=>a+w.atual,0);
+    const totalAnoAnt = months.reduce((a,w)=>a+(w.anoAnt||0),0);
+    const remaining = months.length - completedM.length;
+    const avgAtual = completedM.length ? totalAtual/completedM.length : 0;
+    const totalProjetado = remaining>0 ? totalAtual + avgAtual*remaining : totalAtual;
+
+    const vTrendEl = document.getElementById('v-trend');
+    const bzTrendEl = document.getElementById('bz-trend');
+    if (vTrendEl) vTrendEl.textContent = completedM.length ? fmtTotal(totalProjetado) : '—';
+    if (bzTrendEl) {
+      if (!completedM.length) {
+        bzTrendEl.textContent = '—'; bzTrendEl.style.color = '#9A9A9A';
+      } else if (!totalAnoAnt) {
+        bzTrendEl.textContent = (remaining>0 ? 'Projeção de fechamento do ano' : 'Ano fechado') + ' · sem base 2025';
+        bzTrendEl.style.color = '#9A9A9A';
       } else {
-        weeks = [1,2,3,4].map(s => {
-          const d = SEMANAL_RAW[indKey]?.[mes]?.[s];
-          return { l: 'S'+s, atual: (d&&d.res>0)?d.res:null, anoAnt: (d&&d.anoAnt>0)?d.anoAnt:null };
-        });
-      }
-      requestAnimationFrame(()=> renderTrend('trend-chart', weeks, fmtVal, fmtAxis));
-
-      const completedW = weeks.filter(w=>w.atual!=null);
-      const totalAtual = completedW.reduce((a,w)=>a+w.atual,0);
-      const totalAnoAnt = weeks.reduce((a,w)=>a+(w.anoAnt||0),0);
-      const remaining = weeks.length - completedW.length;
-      const avgAtual = completedW.length ? totalAtual/completedW.length : 0;
-      const totalProjetado = remaining>0 ? totalAtual + avgAtual*remaining : totalAtual;
-
-      const vTrendEl = document.getElementById('v-trend');
-      const bzTrendEl = document.getElementById('bz-trend');
-      if (vTrendEl) vTrendEl.textContent = completedW.length ? fmtTotal(totalProjetado) : '—';
-      if (bzTrendEl) {
-        if (!completedW.length) {
-          bzTrendEl.textContent = '—'; bzTrendEl.style.color = '#9A9A9A';
-        } else if (!totalAnoAnt) {
-          bzTrendEl.textContent = (remaining>0 ? 'Projeção de fechamento' : 'Período fechado') + ' · sem base 2025';
-          bzTrendEl.style.color = '#9A9A9A';
-        } else {
-          const pct = (totalProjetado - totalAnoAnt) / totalAnoAnt * 100;
-          bzTrendEl.textContent = (pct>=0?'↑ ':'↓ ') + Math.abs(Math.round(pct)) + '% vs mesmo período 2025' + (remaining>0?' (projeção)':'');
-          bzTrendEl.style.color = pct>=0 ? '#1E7A42' : '#B82418';
-        }
+        const pct = (totalProjetado - totalAnoAnt) / totalAnoAnt * 100;
+        bzTrendEl.textContent = (pct>=0?'↑ ':'↓ ') + Math.abs(Math.round(pct)) + '% vs 2025' + (remaining>0?' (projeção fechamento do ano)':'');
+        bzTrendEl.style.color = pct>=0 ? '#1E7A42' : '#B82418';
       }
     }
   }

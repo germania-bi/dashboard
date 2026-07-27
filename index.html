@@ -24,6 +24,8 @@
   --gold-lt:   #FFB84D;
   --red-pill:  #C92B1E;
   --circ-bg:   #3A2A14;
+  --trend-blue:    #6FA8E0;
+  --trend-blue-lt: #A8CBEF;
 }
 :root[data-theme="dark"] body { background: var(--bg); color: var(--txt); }
 /* page-wrap não expande além do conteúdo — aplica em ambos os modos */
@@ -114,7 +116,10 @@
 /* ─── Círculo fundo dark ─── */
 :root[data-theme="dark"] .circ-bg-fill { fill: #3A2A14 !important; }
 
-/* ─── Tendência de Faturamento — card full width ─── */
+/* ─── Tendência — card full width (visão anual, cor própria — azul, distinta do dourado dos outros cards) ─── */
+:root { --trend-blue: #3D6490; --trend-blue-lt: #7FA5C9; }
+.pill-trend { background: rgba(61,100,144,0.12); color: var(--trend-blue); border: 1px solid rgba(61,100,144,0.24); }
+:root[data-theme="dark"] .pill-trend { background: rgba(111,168,224,0.15); border-color: rgba(111,168,224,0.28); }
 .row-1col { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 10px; }
 .card-ab-trend { height: 300px; padding: 18px 20px 14px; display: flex; flex-direction: column; position: relative; }
 .trend-body { flex: 1; min-height: 0; display: flex; align-items: stretch; gap: 22px; margin-top: 6px; }
@@ -546,14 +551,14 @@
     </div>
   </div>
 
-  <!-- ROW TENDÊNCIA — full width, ano atual vs ano anterior + projeção pelo ritmo do período -->
+  <!-- ROW TENDÊNCIA — full width, visão anual (Jan-Dez): 2026 real x 2025 x projeção pelo ritmo do ano até aqui -->
   <div class="row row-1col" id="row-trend">
-    <div class="card line-l2" data-s="none">
+    <div class="card" data-s="none">
       <div class="card-ab card-ab-trend">
         <div class="c-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">
           <div>
-            <div class="c-title pill-l2" id="trend-title">Tendência de Faturamento</div>
-            <div class="c-sub">Semanal no período · 2026 vs 2025 + projeção pelo ritmo atual</div>
+            <div class="c-title pill-trend" id="trend-title">Tendência de Faturamento</div>
+            <div class="c-sub">Mensal no ano · 2026 vs 2025 + projeção até dezembro pelo ritmo feito até aqui</div>
           </div>
           <label class="metric-toggle" onclick="toggleTrendMetric()" title="Alternar métrica">
             <span class="metric-toggle-lbl" id="trend-metric-lbl">Faturamento</span>
@@ -568,9 +573,9 @@
           <div class="trend-chart-wrap" id="trend-chart"></div>
         </div>
         <div class="trend-legend">
-          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--gold);"></span>2026 (atual)</span>
-          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--txt-faint);border-top-style:dashed;"></span>2025 (mesmo período)</span>
-          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--gold-lt);border-top-style:dotted;"></span>Tendência (ritmo atual)</span>
+          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--trend-blue);"></span>2026 (real)</span>
+          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--txt-faint);border-top-style:dashed;"></span>2025</span>
+          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--trend-blue-lt);border-top-style:dotted;"></span>Tendência (projeção até dez.)</span>
         </div>
       </div>
     </div>
@@ -666,7 +671,7 @@
   <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Relacionamento / Lig Chopp Germânia</span>
 </div></div>
 
-<script src="script.js?v=42"></script>
+<script src="script.js?v=43"></script>
 <script>/* garante mês atual mesmo se script.js em cache tiver versão antiga */
 (function(){var m=document.getElementById('f-mes');if(m)m.value=String(new Date().getMonth()+1);})();
 </script>
