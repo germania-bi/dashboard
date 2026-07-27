@@ -114,6 +114,25 @@
 /* ─── Círculo fundo dark ─── */
 :root[data-theme="dark"] .circ-bg-fill { fill: #3A2A14 !important; }
 
+/* ─── Tendência de Faturamento — card full width ─── */
+.row-1col { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 10px; }
+.card-ab-trend { height: 300px; padding: 18px 20px 14px; display: flex; flex-direction: column; position: relative; }
+.trend-body { flex: 1; min-height: 0; display: flex; align-items: stretch; gap: 22px; margin-top: 6px; }
+.trend-chart-wrap { flex: 1; min-width: 0; }
+.trend-chart-wrap svg { width: 100%; height: 100%; display: block; overflow: visible; }
+.trend-legend { flex-shrink: 0; display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
+.trend-leg-item { display: flex; align-items: center; gap: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; color: var(--txt-mid); }
+.trend-leg-swatch { width: 16px; height: 0; border-top-width: 2.5px; border-top-style: solid; display: inline-block; }
+:root[data-theme="dark"] .trend-leg-item { color: rgba(241,227,206,0.6); }
+.metric-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; flex-shrink: 0; margin-top: 2px; }
+.metric-toggle-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; color: var(--txt-mid); white-space: nowrap; transition: color 0.2s; }
+.metric-toggle-track { position: relative; width: 34px; height: 19px; background: rgba(180,165,140,0.28); border-radius: 10px; transition: background 0.25s; flex-shrink: 0; }
+.metric-toggle-thumb { position: absolute; top: 2.5px; left: 2.5px; width: 14px; height: 14px; background: #8B7040; border-radius: 50%; transition: transform 0.25s, background 0.25s; }
+.metric-toggle.on .metric-toggle-track { background: var(--gold); }
+.metric-toggle.on .metric-toggle-thumb { background: #1A1208; transform: translateX(15px); }
+:root[data-theme="dark"] .metric-toggle-lbl { color: rgba(241,227,206,0.5); }
+:root[data-theme="dark"] .metric-toggle.on .metric-toggle-lbl { color: var(--gold-lt); }
+
 /* ─── Tab content — garantir display correto em qualquer tema ─── */
 /* Tab visibility — máxima especificidade, anular qualquer position do style.css */
 #tab-visao, #tab-ez, #tab-metas, #tab-marketing {
@@ -527,6 +546,36 @@
     </div>
   </div>
 
+  <!-- ROW TENDÊNCIA — full width, ano atual vs ano anterior + projeção pelo ritmo do período -->
+  <div class="row row-1col" id="row-trend">
+    <div class="card line-l2" data-s="none">
+      <div class="card-ab card-ab-trend">
+        <div class="c-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">
+          <div>
+            <div class="c-title pill-l2" id="trend-title">Tendência de Faturamento</div>
+            <div class="c-sub">Semanal no período · 2026 vs 2025 + projeção pelo ritmo atual</div>
+          </div>
+          <label class="metric-toggle" onclick="toggleTrendMetric()" title="Alternar métrica">
+            <span class="metric-toggle-lbl" id="trend-metric-lbl">Faturamento</span>
+            <span class="metric-toggle-track"><span class="metric-toggle-thumb"></span></span>
+          </label>
+        </div>
+        <div class="trend-body">
+          <div class="c-val-block" style="flex-shrink:0;">
+            <div class="c-val" id="v-trend" style="font-size:32px;">—</div>
+            <span class="bezel neu" id="bz-trend">—</span>
+          </div>
+          <div class="trend-chart-wrap" id="trend-chart"></div>
+        </div>
+        <div class="trend-legend">
+          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--gold);"></span>2026 (atual)</span>
+          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--txt-faint);border-top-style:dashed;"></span>2025 (mesmo período)</span>
+          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--gold-lt);border-top-style:dotted;"></span>Tendência (ritmo atual)</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ROW 3 — sparklines -->
   <div class="row">
 
@@ -617,7 +666,7 @@
   <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Relacionamento / Lig Chopp Germânia</span>
 </div></div>
 
-<script src="script.js?v=40"></script>
+<script src="script.js?v=42"></script>
 <script>/* garante mês atual mesmo se script.js em cache tiver versão antiga */
 (function(){var m=document.getElementById('f-mes');if(m)m.value=String(new Date().getMonth()+1);})();
 </script>

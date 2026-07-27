@@ -15,6 +15,7 @@ const SHEETS = {
 let SEMANAL_RAW  = {};
 let EZ_TICKETS   = [];
 let METAS_RAW    = [];
+let trendMetric  = 'faturamento'; // 'faturamento' | 'litros' — card Tendência na Visão Geral
 
 /* ── META ADS ── */
 const META_API = 'https://germania-ads-backend.vercel.app';
@@ -762,6 +763,115 @@ function spark(id,vals,labs,fmtFn,highlightIdx=-1,desc=''){
   });
 }
 
+// Tendência (Faturamento ou Litros) — line chart: 2026 (real) x 2025 (mesmo período) x projeção pelo ritmo atual.
+// weeks: [{l, atual: number|null, anoAnt: number|null}] — null = período ainda sem dado (não desenha ponto/fantasma)
+// fmtVal: formata valor no ponto/tooltip. fmtAxis: formata rótulo do eixo Y (mais compacto).
+function renderTrend(id, weeks, fmtVal, fmtAxis){
+  const wrap=document.getElementById(id); if(!wrap) return;
+  wrap.innerHTML='';
+  const cs=getComputedStyle(document.documentElement);
+  const cGold=(cs.getPropertyValue('--gold')||'#C8941A').trim();
+  const cGoldLt=(cs.getPropertyValue('--gold-lt')||'#E8B840').trim();
+  const cFaint=(cs.getPropertyValue('--txt-faint')||'#A89870').trim();
+
+  if(!weeks.some(w=>w.atual!=null||w.anoAnt!=null)){
+    wrap.innerHTML='<div style="height:100%;display:flex;align-items:center;justify-content:center;font-family:\'Barlow\',sans-serif;font-size:13px;color:'+cFaint+';">Sem dados no período</div>';
+    return;
+  }
+
+  const W=wrap.offsetWidth||600,H=wrap.offsetHeight||180;
+  const pL=42,pR=16,pT=14,pB=24,uW=W-pL-pR,uH=H-pT-pB,n=weeks.length;
+  const xs=weeks.map((_,i)=> n>1 ? pL+(i/(n-1))*uW : pL+uW/2);
+
+  let completedIdx=-1;
+  weeks.forEach((w,i)=>{ if(w.atual!=null) completedIdx=i; });
+  const completed=weeks.filter(w=>w.atual!=null);
+  const avgAtual=completed.length ? completed.reduce((a,w)=>a+w.atual,0)/completed.length : 0;
+
+  const scaleVals=[];
+  weeks.forEach(w=>{ if(w.atual!=null) scaleVals.push(w.atual); if(w.anoAnt!=null) scaleVals.push(w.anoAnt); });
+  if(completedIdx>=0 && completedIdx<n-1) scaleVals.push(avgAtual);
+  const mx=Math.max(...scaleVals,1)*1.22,mn=0,rng=(mx-mn)||1;
+  const yOf=v=>pT+uH-((v-mn)/rng)*uH;
+
+  // variação vs mesmo ponto de 2025, pra enriquecer o tooltip do ano atual
+  function varStr(atualV, anoAntV){
+    if(!anoAntV) return '';
+    const pct=(atualV-anoAntV)/anoAntV*100;
+    return ' ('+(pct>=0?'↑ ':'↓ ')+Math.abs(Math.round(pct))+'% vs 2025)';
+  }
+
+  let gridSvg='';
+  for(let g=0; g<=4; g++){
+    const gv=mn+(rng*g/4),gy=yOf(gv);
+    gridSvg+='<line x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR).toFixed(1)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(150,130,90,0.14)" stroke-width="1"/>';
+    gridSvg+='<text x="'+(pL-8).toFixed(1)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end" font-family="Barlow Condensed,sans-serif" font-size="10" fill="'+cFaint+'">'+fmtAxis(gv)+'</text>';
+  }
+  const xLbls=weeks.map((w,i)=>'<text x="'+xs[i].toFixed(1)+'" y="'+(H-6).toFixed(1)+'" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600" fill="'+cFaint+'">'+w.l+'</text>').join('');
+
+  const anoPts=weeks.map((w,i)=>w.anoAnt!=null?{x:xs[i],y:yOf(w.anoAnt),v:w.anoAnt,l:w.l}:null).filter(Boolean);
+  const anoPath=anoPts.length?('M'+anoPts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' L')):'';
+  const anoDots=anoPts.map(p=>'<circle class="tr-dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3.5" fill="'+cFaint+'" style="cursor:pointer;" data-v="'+fmtVal(p.v)+'" data-l="'+p.l+' · 2025"/>').join('');
+
+  const curPts=weeks.map((w,i)=>w.atual!=null?{x:xs[i],y:yOf(w.atual),v:w.atual,l:w.l,idx:i,ant:w.anoAnt}:null).filter(Boolean);
+  const curPath=curPts.length?('M'+curPts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' L')):'';
+  const curDots=curPts.map((p,i)=>{
+    const isLast=i===curPts.length-1;
+    return '<circle class="tr-dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(isLast?6:4.5)+'" fill="'+cGold+'" stroke="white" stroke-width="2" style="cursor:pointer;" data-v="'+fmtVal(p.v)+varStr(p.v,p.ant)+'" data-l="'+p.l+' · 2026"/>';
+  }).join('');
+  const curLbls=curPts.map((p,i)=>{
+    if(i!==curPts.length-1) return '';
+    // âncora conforme a posição real do ponto no eixo — evita colidir com o eixo Y quando é o primeiro ponto
+    const anchor = p.idx===0 ? 'start' : p.idx===n-1 ? 'end' : 'middle';
+    return '<text x="'+p.x.toFixed(1)+'" y="'+(p.y-13).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="14" font-weight="800" fill="'+cGold+'">'+fmtVal(p.v)+'</text>';
+  }).join('');
+
+  let projPath='',projEndDot='';
+  if(completedIdx>=0 && completedIdx<n-1){
+    const projPts=[{x:xs[completedIdx],y:yOf(weeks[completedIdx].atual)}];
+    for(let i=completedIdx+1;i<n;i++) projPts.push({x:xs[i],y:yOf(avgAtual)});
+    projPath='M'+projPts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' L');
+    const last=projPts[projPts.length-1];
+    const holeFill=document.documentElement.getAttribute('data-theme')==='dark'?'#261E12':'#FFFFFF';
+    projEndDot='<circle cx="'+last.x.toFixed(1)+'" cy="'+last.y.toFixed(1)+'" r="4.5" fill="'+holeFill+'" stroke="'+cGoldLt+'" stroke-width="2" stroke-dasharray="2,2"/>';
+  }
+
+  const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
+  svg.setAttribute('viewBox','0 0 '+W+' '+H);
+  svg.setAttribute('width','100%');svg.setAttribute('height','100%');
+  svg.style.display='block';
+  svg.innerHTML=gridSvg
+    +(anoPath?'<path d="'+anoPath+'" fill="none" stroke="'+cFaint+'" stroke-width="2" stroke-dasharray="5,4" stroke-linecap="round"/>':'')
+    +(projPath?'<path d="'+projPath+'" fill="none" stroke="'+cGoldLt+'" stroke-width="2" stroke-dasharray="1,4" stroke-linecap="round"/>':'')
+    +(curPath?'<path d="'+curPath+'" fill="none" stroke="'+cGold+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>':'')
+    +anoDots+curDots+projEndDot+curLbls+xLbls;
+
+  const oldTip=document.querySelector('.sp-tip[data-id="'+id+'"]');
+  if(oldTip)oldTip.remove();
+  const tip=document.createElement('div');
+  tip.className='sp-tip';tip.dataset.id=id;
+  wrap.style.position='relative';
+  document.body.appendChild(tip);wrap.appendChild(svg);
+  svg.querySelectorAll('.tr-dot').forEach(d=>{
+    d.addEventListener('mouseenter',(e)=>{
+      tip.textContent=d.dataset.l+': '+d.dataset.v;
+      tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-32)+'px';tip.style.opacity='1';
+    });
+    d.addEventListener('mousemove',(e)=>{ tip.style.left=(e.clientX+12)+'px';tip.style.top=(e.clientY-32)+'px'; });
+    d.addEventListener('mouseleave',()=>{tip.style.opacity='0';});
+  });
+}
+
+function toggleTrendMetric(){
+  trendMetric = trendMetric === 'faturamento' ? 'litros' : 'faturamento';
+  const isLitros = trendMetric === 'litros';
+  const toggleEl = document.querySelector('.metric-toggle');
+  if (toggleEl) toggleEl.classList.toggle('on', isLitros);
+  const lblEl = document.getElementById('trend-metric-lbl');
+  if (lblEl) lblEl.textContent = isLitros ? 'Litros' : 'Faturamento';
+  go();
+}
+
 /* ── VISÃO GERAL ── */
 function go(){
   const mesRaw = parseInt(document.getElementById('f-mes')?.value);
@@ -948,6 +1058,63 @@ function go(){
           spark('sp-tl', spL, spLabels, fL, hlIdx, 'volume por evento');
           spark('sp-rl', spR, spLabels, v=>'R$'+v.toFixed(2).replace('.',','), hlIdx, 'receita por litro');
         });
+      }
+    }
+  }
+
+  // Tendência (Faturamento ou Litros, via interruptor) — full width: 2026 real x 2025 (mesmo período) x projeção pelo ritmo do período
+  {
+    const trendRow = document.getElementById('row-trend');
+    if (mesRaw === 0) {
+      // Ano completo: 12 meses já fecham o comparativo, projeção semanal não se aplica aqui — esconde, mesmo tratamento das sparklines.
+      if (trendRow) trendRow.style.display = 'none';
+    } else {
+      if (trendRow) trendRow.style.display = '';
+      const isLitros = trendMetric === 'litros';
+      const indKey = isLitros ? 'Litros vendidos' : 'Faturamento';
+      const fmtVal = isLitros ? (v=>fmt(Math.round(v))+'L') : fR;
+      const fmtAxis = isLitros ? (v=>fmt(Math.round(v))+'L') : (v=>'R$'+Math.round(v/1000)+'k');
+      const fmtTotal = v => isLitros ? fmt(Math.round(v))+' L' : 'R$ '+fmt(Math.round(v));
+      const titleEl = document.getElementById('trend-title');
+      if (titleEl) titleEl.textContent = 'Tendência de ' + (isLitros ? 'Litros' : 'Faturamento');
+
+      const MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+      let weeks;
+      if (tri && TRI_MESES[tri]) {
+        weeks = TRI_MESES[tri].map(m => {
+          const atualSum = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.res||0),0);
+          const antSum   = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.anoAnt||0),0);
+          return { l: MNAMES[m], atual: atualSum>0?atualSum:null, anoAnt: antSum>0?antSum:null };
+        });
+      } else {
+        weeks = [1,2,3,4].map(s => {
+          const d = SEMANAL_RAW[indKey]?.[mes]?.[s];
+          return { l: 'S'+s, atual: (d&&d.res>0)?d.res:null, anoAnt: (d&&d.anoAnt>0)?d.anoAnt:null };
+        });
+      }
+      requestAnimationFrame(()=> renderTrend('trend-chart', weeks, fmtVal, fmtAxis));
+
+      const completedW = weeks.filter(w=>w.atual!=null);
+      const totalAtual = completedW.reduce((a,w)=>a+w.atual,0);
+      const totalAnoAnt = weeks.reduce((a,w)=>a+(w.anoAnt||0),0);
+      const remaining = weeks.length - completedW.length;
+      const avgAtual = completedW.length ? totalAtual/completedW.length : 0;
+      const totalProjetado = remaining>0 ? totalAtual + avgAtual*remaining : totalAtual;
+
+      const vTrendEl = document.getElementById('v-trend');
+      const bzTrendEl = document.getElementById('bz-trend');
+      if (vTrendEl) vTrendEl.textContent = completedW.length ? fmtTotal(totalProjetado) : '—';
+      if (bzTrendEl) {
+        if (!completedW.length) {
+          bzTrendEl.textContent = '—'; bzTrendEl.style.color = '#9A9A9A';
+        } else if (!totalAnoAnt) {
+          bzTrendEl.textContent = (remaining>0 ? 'Projeção de fechamento' : 'Período fechado') + ' · sem base 2025';
+          bzTrendEl.style.color = '#9A9A9A';
+        } else {
+          const pct = (totalProjetado - totalAnoAnt) / totalAnoAnt * 100;
+          bzTrendEl.textContent = (pct>=0?'↑ ':'↓ ') + Math.abs(Math.round(pct)) + '% vs mesmo período 2025' + (remaining>0?' (projeção)':'');
+          bzTrendEl.style.color = pct>=0 ? '#1E7A42' : '#B82418';
+        }
       }
     }
   }
