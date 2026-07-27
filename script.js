@@ -764,35 +764,52 @@ function spark(id,vals,labs,fmtFn,highlightIdx=-1,desc=''){
   });
 }
 
-// Tendência (Faturamento ou Litros) — line chart: 2026 (real) x 2025 (mesmo período) x projeção pelo ritmo atual.
-// weeks: [{l, atual: number|null, anoAnt: number|null}] — null = período ainda sem dado (não desenha ponto/fantasma)
-// fmtVal: formata valor no ponto/tooltip. fmtAxis: formata rótulo do eixo Y (mais compacto).
-function renderTrend(id, weeks, fmtVal, fmtAxis){
+// Catmull-Rom → cubic Bezier: curva suave que passa exatamente pelos pontos, sem "barriga" artificial.
+function catmullRomPath(pts){
+  if(pts.length<2) return '';
+  if(pts.length===2) return 'M'+pts[0].x.toFixed(1)+','+pts[0].y.toFixed(1)+' L'+pts[1].x.toFixed(1)+','+pts[1].y.toFixed(1);
+  let d='M'+pts[0].x.toFixed(1)+','+pts[0].y.toFixed(1);
+  for(let i=0;i<pts.length-1;i++){
+    const p0=pts[i-1]||pts[i], p1=pts[i], p2=pts[i+1], p3=pts[i+2]||p2;
+    const c1x=p1.x+(p2.x-p0.x)/6, c1y=p1.y+(p2.y-p0.y)/6;
+    const c2x=p2.x-(p3.x-p1.x)/6, c2y=p2.y-(p3.y-p1.y)/6;
+    d+=' C'+c1x.toFixed(1)+','+c1y.toFixed(1)+' '+c2x.toFixed(1)+','+c2y.toFixed(1)+' '+p2.x.toFixed(1)+','+p2.y.toFixed(1);
+  }
+  return d;
+}
+
+// Tendência (Faturamento ou Litros) — visão anual: 2026 (real, curva) x 2025 (curva) x projeção (curva pontilhada) +
+// barras de variação mensal (verde/vermelho) nos meses já fechados, com escala própria no eixo direito.
+// months: [{l, atual: number|null, anoAnt: number|null}] — null = mês ainda sem dado (não desenha ponto/fantasma)
+// fmtVal: formata valor no ponto/tooltip/barra. fmtAxis: formata rótulo do eixo (mais compacto).
+// callout: {value, pct, color} — destaque no ponto final (projeção ou fechamento do ano), ou null.
+function renderTrend(id, months, fmtVal, fmtAxis, callout){
   const wrap=document.getElementById(id); if(!wrap) return;
   wrap.innerHTML='';
   const cs=getComputedStyle(document.documentElement);
   const cLine=(cs.getPropertyValue('--trend-blue')||'#3D6490').trim();
   const cLineLt=(cs.getPropertyValue('--trend-blue-lt')||'#7FA5C9').trim();
   const cFaint=(cs.getPropertyValue('--txt-faint')||'#A89870').trim();
+  const cGreen='#1E7A42', cRed='#B82418';
 
-  if(!weeks.some(w=>w.atual!=null||w.anoAnt!=null)){
+  if(!months.some(w=>w.atual!=null||w.anoAnt!=null)){
     wrap.innerHTML='<div style="height:100%;display:flex;align-items:center;justify-content:center;font-family:\'Barlow\',sans-serif;font-size:13px;color:'+cFaint+';">Sem dados no período</div>';
     return;
   }
 
-  const W=wrap.offsetWidth||600,H=wrap.offsetHeight||180;
-  const pL=42,pR=16,pT=14,pB=24,uW=W-pL-pR,uH=H-pT-pB,n=weeks.length;
-  const xs=weeks.map((_,i)=> n>1 ? pL+(i/(n-1))*uW : pL+uW/2);
+  const W=wrap.offsetWidth||900,H=wrap.offsetHeight||260;
+  const pL=48,pR=48,pT=18,pB=26,uW=W-pL-pR,uH=H-pT-pB,n=months.length;
+  const xs=months.map((_,i)=> n>1 ? pL+(i/(n-1))*uW : pL+uW/2);
 
   let completedIdx=-1;
-  weeks.forEach((w,i)=>{ if(w.atual!=null) completedIdx=i; });
-  const completed=weeks.filter(w=>w.atual!=null);
+  months.forEach((w,i)=>{ if(w.atual!=null) completedIdx=i; });
+  const completed=months.filter(w=>w.atual!=null);
   const avgAtual=completed.length ? completed.reduce((a,w)=>a+w.atual,0)/completed.length : 0;
 
   const scaleVals=[];
-  weeks.forEach(w=>{ if(w.atual!=null) scaleVals.push(w.atual); if(w.anoAnt!=null) scaleVals.push(w.anoAnt); });
+  months.forEach(w=>{ if(w.atual!=null) scaleVals.push(w.atual); if(w.anoAnt!=null) scaleVals.push(w.anoAnt); });
   if(completedIdx>=0 && completedIdx<n-1) scaleVals.push(avgAtual);
-  const mx=Math.max(...scaleVals,1)*1.22,mn=0,rng=(mx-mn)||1;
+  const mx=Math.max(...scaleVals,1)*1.18,mn=0,rng=(mx-mn)||1;
   const yOf=v=>pT+uH-((v-mn)/rng)*uH;
 
   // variação vs mesmo ponto de 2025, pra enriquecer o tooltip do ano atual
@@ -802,50 +819,79 @@ function renderTrend(id, weeks, fmtVal, fmtAxis){
     return ' ('+(pct>=0?'↑ ':'↓ ')+Math.abs(Math.round(pct))+'% vs 2025)';
   }
 
+  // grade principal (volume) — eixo esquerdo
   let gridSvg='';
   for(let g=0; g<=4; g++){
     const gv=mn+(rng*g/4),gy=yOf(gv);
-    gridSvg+='<line x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR).toFixed(1)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(150,130,90,0.14)" stroke-width="1"/>';
-    gridSvg+='<text x="'+(pL-8).toFixed(1)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end" font-family="Barlow Condensed,sans-serif" font-size="10" fill="'+cFaint+'">'+fmtAxis(gv)+'</text>';
+    gridSvg+='<line x1="'+pL+'" y1="'+gy.toFixed(1)+'" x2="'+(W-pR).toFixed(1)+'" y2="'+gy.toFixed(1)+'" stroke="rgba(150,130,90,0.13)" stroke-width="1"/>';
+    gridSvg+='<text x="'+(pL-8).toFixed(1)+'" y="'+(gy+3).toFixed(1)+'" text-anchor="end" font-family="Barlow Condensed,sans-serif" font-size="10.5" fill="'+cFaint+'">'+fmtAxis(gv)+'</text>';
   }
-  const xLbls=weeks.map((w,i)=>'<text x="'+xs[i].toFixed(1)+'" y="'+(H-6).toFixed(1)+'" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="11" font-weight="600" fill="'+cFaint+'">'+w.l+'</text>').join('');
+  const xLbls=months.map((w,i)=>'<text x="'+xs[i].toFixed(1)+'" y="'+(H-7).toFixed(1)+'" text-anchor="middle" font-family="Barlow Condensed,sans-serif" font-size="11.5" font-weight="600" fill="'+cFaint+'">'+w.l+'</text>').join('');
 
-  const anoPts=weeks.map((w,i)=>w.anoAnt!=null?{x:xs[i],y:yOf(w.anoAnt),v:w.anoAnt,l:w.l}:null).filter(Boolean);
-  const anoPath=anoPts.length?('M'+anoPts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' L')):'';
+  // barras de variação — só meses fechados (com 2026 real E 2025), escala própria centrada no eixo direito
+  const deltaMonths=months.map((w,i)=>(w.atual!=null&&w.anoAnt!=null)?{i,delta:w.atual-w.anoAnt}:null).filter(Boolean);
+  let barsSvg='',rightAxisSvg='';
+  if(deltaMonths.length){
+    const maxAbsDelta=Math.max(1,...deltaMonths.map(d=>Math.abs(d.delta)));
+    const baseY=pT+uH*0.58, upMax=uH*0.26, downMax=uH*0.20;
+    const barY=v=> v>=0 ? baseY-(v/maxAbsDelta)*upMax : baseY-(v/maxAbsDelta)*downMax;
+    const barW=Math.max(10,Math.min(30,(uW/n)*0.5));
+    barsSvg+='<line x1="'+pL+'" y1="'+baseY.toFixed(1)+'" x2="'+(W-pR).toFixed(1)+'" y2="'+baseY.toFixed(1)+'" stroke="rgba(150,130,90,0.22)" stroke-width="1" stroke-dasharray="3,3"/>';
+    deltaMonths.forEach(d=>{
+      const x=xs[d.i],y0=baseY,y1=barY(d.delta),top=Math.min(y0,y1),h=Math.max(1,Math.abs(y1-y0)),isUp=d.delta>=0;
+      barsSvg+='<rect class="tr-dot" x="'+(x-barW/2).toFixed(1)+'" y="'+top.toFixed(1)+'" width="'+barW.toFixed(1)+'" height="'+h.toFixed(1)+'" rx="2" fill="'+(isUp?'rgba(30,122,66,0.16)':'rgba(184,36,24,0.14)')+'" stroke="'+(isUp?cGreen:cRed)+'" stroke-width="1.4" style="cursor:pointer;" data-v="'+(isUp?'+':'−')+fmtVal(Math.abs(d.delta))+'" data-l="'+months[d.i].l+' vs 2025"/>';
+    });
+    rightAxisSvg+='<text x="'+(W-pR+8).toFixed(1)+'" y="'+(barY(maxAbsDelta)+3).toFixed(1)+'" text-anchor="start" font-family="Barlow Condensed,sans-serif" font-size="10" fill="'+cGreen+'">+'+fmtAxis(maxAbsDelta)+'</text>';
+    rightAxisSvg+='<text x="'+(W-pR+8).toFixed(1)+'" y="'+(barY(-maxAbsDelta)+3).toFixed(1)+'" text-anchor="start" font-family="Barlow Condensed,sans-serif" font-size="10" fill="'+cRed+'">−'+fmtAxis(maxAbsDelta)+'</text>';
+  }
+
+  const anoPts=months.map((w,i)=>w.anoAnt!=null?{x:xs[i],y:yOf(w.anoAnt),v:w.anoAnt,l:w.l}:null).filter(Boolean);
+  const anoPath=catmullRomPath(anoPts);
   const anoDots=anoPts.map(p=>'<circle class="tr-dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="3.5" fill="'+cFaint+'" style="cursor:pointer;" data-v="'+fmtVal(p.v)+'" data-l="'+p.l+' · 2025"/>').join('');
 
-  const curPts=weeks.map((w,i)=>w.atual!=null?{x:xs[i],y:yOf(w.atual),v:w.atual,l:w.l,idx:i,ant:w.anoAnt}:null).filter(Boolean);
-  const curPath=curPts.length?('M'+curPts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' L')):'';
+  const curPts=months.map((w,i)=>w.atual!=null?{x:xs[i],y:yOf(w.atual),v:w.atual,l:w.l,idx:i,ant:w.anoAnt}:null).filter(Boolean);
+  const curPath=catmullRomPath(curPts);
   const curDots=curPts.map((p,i)=>{
     const isLast=i===curPts.length-1;
     return '<circle class="tr-dot" cx="'+p.x.toFixed(1)+'" cy="'+p.y.toFixed(1)+'" r="'+(isLast?6:4.5)+'" fill="'+cLine+'" stroke="white" stroke-width="2" style="cursor:pointer;" data-v="'+fmtVal(p.v)+varStr(p.v,p.ant)+'" data-l="'+p.l+' · 2026"/>';
   }).join('');
   const curLbls=curPts.map((p,i)=>{
     if(i!==curPts.length-1) return '';
-    // âncora conforme a posição real do ponto no eixo — evita colidir com o eixo Y quando é o primeiro ponto
+    // âncora conforme a posição real do ponto no eixo — evita colidir com o eixo quando é o primeiro/último ponto
     const anchor = p.idx===0 ? 'start' : p.idx===n-1 ? 'end' : 'middle';
-    return '<text x="'+p.x.toFixed(1)+'" y="'+(p.y-13).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="14" font-weight="800" fill="'+cLine+'">'+fmtVal(p.v)+'</text>';
+    return '<text x="'+p.x.toFixed(1)+'" y="'+(p.y-13).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="13" font-weight="800" fill="'+cLine+'">'+fmtVal(p.v)+'</text>';
   }).join('');
 
-  let projPath='',projEndDot='';
+  let projPath='',projEndDot='',calloutSvg='';
+  const holeFill=document.documentElement.getAttribute('data-theme')==='dark'?'#261E12':'#FFFFFF';
   if(completedIdx>=0 && completedIdx<n-1){
-    const projPts=[{x:xs[completedIdx],y:yOf(weeks[completedIdx].atual)}];
+    const projPts=[{x:xs[completedIdx],y:yOf(months[completedIdx].atual)}];
     for(let i=completedIdx+1;i<n;i++) projPts.push({x:xs[i],y:yOf(avgAtual)});
-    projPath='M'+projPts.map(p=>p.x.toFixed(1)+','+p.y.toFixed(1)).join(' L');
+    projPath=catmullRomPath(projPts);
     const last=projPts[projPts.length-1];
-    const holeFill=document.documentElement.getAttribute('data-theme')==='dark'?'#261E12':'#FFFFFF';
-    projEndDot='<circle cx="'+last.x.toFixed(1)+'" cy="'+last.y.toFixed(1)+'" r="4.5" fill="'+holeFill+'" stroke="'+cLineLt+'" stroke-width="2" stroke-dasharray="2,2"/>';
+    projEndDot='<circle class="tr-dot" cx="'+last.x.toFixed(1)+'" cy="'+last.y.toFixed(1)+'" r="4.5" fill="'+holeFill+'" stroke="'+cLineLt+'" stroke-width="2" stroke-dasharray="2,2" style="cursor:pointer;" data-v="'+fmtVal(avgAtual)+'" data-l="Ritmo mensal projetado"/>';
+    if(callout){
+      // posição fixa no topo do gráfico — evita colidir com o eixo direito das barras ou com a própria linha
+      const anchor = last.x > W*0.6 ? 'end' : 'middle';
+      calloutSvg='<text x="'+last.x.toFixed(1)+'" y="'+(pT+14).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="17" font-weight="800" fill="'+cLineLt+'">'+callout.value+'</text>'
+        +'<text x="'+last.x.toFixed(1)+'" y="'+(pT+30).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="11.5" font-weight="700" fill="'+callout.color+'">'+callout.pct+'</text>';
+    }
+  } else if (callout && curPts.length) {
+    const lastReal=curPts[curPts.length-1];
+    const anchor = lastReal.x > W*0.6 ? 'end' : 'middle';
+    calloutSvg='<text x="'+lastReal.x.toFixed(1)+'" y="'+(pT+14).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="17" font-weight="800" fill="'+cLine+'">'+callout.value+'</text>'
+      +'<text x="'+lastReal.x.toFixed(1)+'" y="'+(pT+30).toFixed(1)+'" text-anchor="'+anchor+'" font-family="Barlow Condensed,sans-serif" font-size="11.5" font-weight="700" fill="'+callout.color+'">'+callout.pct+'</text>';
   }
 
   const svg=document.createElementNS('http://www.w3.org/2000/svg','svg');
   svg.setAttribute('viewBox','0 0 '+W+' '+H);
   svg.setAttribute('width','100%');svg.setAttribute('height','100%');
   svg.style.display='block';
-  svg.innerHTML=gridSvg
+  svg.innerHTML=gridSvg+barsSvg+rightAxisSvg
     +(anoPath?'<path d="'+anoPath+'" fill="none" stroke="'+cFaint+'" stroke-width="2" stroke-dasharray="5,4" stroke-linecap="round"/>':'')
     +(projPath?'<path d="'+projPath+'" fill="none" stroke="'+cLineLt+'" stroke-width="2" stroke-dasharray="1,4" stroke-linecap="round"/>':'')
     +(curPath?'<path d="'+curPath+'" fill="none" stroke="'+cLine+'" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>':'')
-    +anoDots+curDots+projEndDot+curLbls+xLbls;
+    +anoDots+curDots+projEndDot+curLbls+calloutSvg+xLbls;
 
   const oldTip=document.querySelector('.sp-tip[data-id="'+id+'"]');
   if(oldTip)oldTip.remove();
@@ -1081,8 +1127,6 @@ function go(){
       const antSum   = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.anoAnt||0),0);
       return { l: MNAMES[m], atual: atualSum>0?atualSum:null, anoAnt: antSum>0?antSum:null };
     });
-    requestAnimationFrame(()=> renderTrend('trend-chart', months, fmtVal, fmtAxis));
-
     const completedM = months.filter(w=>w.atual!=null);
     const totalAtual = completedM.reduce((a,w)=>a+w.atual,0);
     const totalAnoAnt = months.reduce((a,w)=>a+(w.anoAnt||0),0);
@@ -1090,19 +1134,42 @@ function go(){
     const avgAtual = completedM.length ? totalAtual/completedM.length : 0;
     const totalProjetado = remaining>0 ? totalAtual + avgAtual*remaining : totalAtual;
 
-    const vTrendEl = document.getElementById('v-trend');
-    const bzTrendEl = document.getElementById('bz-trend');
-    if (vTrendEl) vTrendEl.textContent = completedM.length ? fmtTotal(totalProjetado) : '—';
-    if (bzTrendEl) {
-      if (!completedM.length) {
-        bzTrendEl.textContent = '—'; bzTrendEl.style.color = '#9A9A9A';
-      } else if (!totalAnoAnt) {
-        bzTrendEl.textContent = (remaining>0 ? 'Projeção de fechamento do ano' : 'Ano fechado') + ' · sem base 2025';
-        bzTrendEl.style.color = '#9A9A9A';
-      } else {
+    // callout no ponto final do gráfico (projeção de fechamento, ou total fechado se o ano já acabou)
+    let callout = null;
+    if (completedM.length) {
+      if (totalAnoAnt) {
         const pct = (totalProjetado - totalAnoAnt) / totalAnoAnt * 100;
-        bzTrendEl.textContent = (pct>=0?'↑ ':'↓ ') + Math.abs(Math.round(pct)) + '% vs 2025' + (remaining>0?' (projeção fechamento do ano)':'');
-        bzTrendEl.style.color = pct>=0 ? '#1E7A42' : '#B82418';
+        callout = {
+          value: fmtTotal(totalProjetado),
+          pct: (pct>=0?'↑ ':'↓ ') + Math.abs(Math.round(pct)) + '% vs 2025' + (remaining>0?' (projeção)':''),
+          color: pct>=0 ? '#1E7A42' : '#B82418'
+        };
+      } else {
+        callout = { value: fmtTotal(totalProjetado), pct: (remaining>0?'Projeção de fechamento':'Ano fechado') + ' · sem base 2025', color: '#9A9A9A' };
+      }
+    }
+    requestAnimationFrame(()=> renderTrend('trend-chart', months, fmtVal, fmtAxis, callout));
+
+    // caixa de contexto: como 2025 fechou vs como 2026 está indo até aqui (comparação nos mesmos meses)
+    const mesesComparaveis = months.filter(w=>w.atual!=null && w.anoAnt!=null);
+    const totalAnoAntComparavel = mesesComparaveis.reduce((a,w)=>a+w.anoAnt,0);
+    const ultimoMes = completedM.length ? completedM[completedM.length-1].l : '';
+    const ctxLblEl = document.getElementById('trend-ctx-2026-lbl');
+    const ctx2025El = document.getElementById('trend-ctx-2025');
+    const ctx2026El = document.getElementById('trend-ctx-2026');
+    const ctxDeltaEl = document.getElementById('trend-ctx-2026-delta');
+    if (ctxLblEl) ctxLblEl.textContent = '2026 · até ' + (ultimoMes || 'aqui');
+    if (ctx2025El) ctx2025El.textContent = totalAnoAnt ? fmtTotal(totalAnoAnt) : '—';
+    if (ctx2026El) ctx2026El.textContent = completedM.length ? fmtTotal(totalAtual) : '—';
+    if (ctxDeltaEl) {
+      if (!completedM.length) {
+        ctxDeltaEl.textContent = '—'; ctxDeltaEl.style.color = '#9A9A9A';
+      } else if (!totalAnoAntComparavel) {
+        ctxDeltaEl.textContent = 'sem base 2025'; ctxDeltaEl.style.color = '#9A9A9A';
+      } else {
+        const pctSoFar = (totalAtual - totalAnoAntComparavel) / totalAnoAntComparavel * 100;
+        ctxDeltaEl.textContent = (pctSoFar>=0?'↑ ':'↓ ') + Math.abs(Math.round(pctSoFar)) + '% vs mesmos meses 2025';
+        ctxDeltaEl.style.color = pctSoFar>=0 ? '#1E7A42' : '#B82418';
       }
     }
   }

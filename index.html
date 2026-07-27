@@ -121,14 +121,20 @@
 .pill-trend { background: rgba(61,100,144,0.12); color: var(--trend-blue); border: 1px solid rgba(61,100,144,0.24); }
 :root[data-theme="dark"] .pill-trend { background: rgba(111,168,224,0.15); border-color: rgba(111,168,224,0.28); }
 .row-1col { display: grid; grid-template-columns: 1fr; gap: 10px; margin-bottom: 10px; }
-.card-ab-trend { height: 300px; padding: 18px 20px 14px; display: flex; flex-direction: column; position: relative; }
-.trend-body { flex: 1; min-height: 0; display: flex; align-items: stretch; gap: 22px; margin-top: 6px; }
+.card-ab-trend { height: 400px; padding: 18px 22px 16px; display: flex; flex-direction: column; position: relative; }
+.trend-body { flex: 1; min-height: 0; display: flex; align-items: stretch; gap: 26px; margin-top: 6px; }
 .trend-chart-wrap { flex: 1; min-width: 0; }
 .trend-chart-wrap svg { width: 100%; height: 100%; display: block; overflow: visible; }
 .trend-legend { flex-shrink: 0; display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px; }
 .trend-leg-item { display: flex; align-items: center; gap: 6px; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.3px; color: var(--txt-mid); }
 .trend-leg-swatch { width: 16px; height: 0; border-top-width: 2.5px; border-top-style: solid; display: inline-block; }
+.trend-leg-box { width: 10px; height: 10px; border-width: 1.5px; border-style: solid; border-radius: 2px; display: inline-block; margin-right: 3px; }
 :root[data-theme="dark"] .trend-leg-item { color: rgba(241,227,206,0.6); }
+.trend-ctx { display: flex; flex-direction: column; gap: 18px; justify-content: center; flex-shrink: 0; min-width: 148px; max-width: 172px; }
+.trend-ctx-row { display: flex; flex-direction: column; gap: 3px; }
+.trend-ctx-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--txt-faint); }
+.trend-ctx-val { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; line-height: 1.08; }
+.trend-ctx-delta { font-family: 'Barlow Condensed', sans-serif; font-size: 11.5px; font-weight: 600; }
 .metric-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; flex-shrink: 0; margin-top: 2px; }
 .metric-toggle-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; color: var(--txt-mid); white-space: nowrap; transition: color 0.2s; }
 .metric-toggle-track { position: relative; width: 34px; height: 19px; background: rgba(180,165,140,0.28); border-radius: 10px; transition: background 0.25s; flex-shrink: 0; }
@@ -566,9 +572,16 @@
           </label>
         </div>
         <div class="trend-body">
-          <div class="c-val-block" style="flex-shrink:0;">
-            <div class="c-val" id="v-trend" style="font-size:32px;">—</div>
-            <span class="bezel neu" id="bz-trend">—</span>
+          <div class="trend-ctx">
+            <div class="trend-ctx-row">
+              <div class="trend-ctx-lbl">2025 · ano fechado</div>
+              <div class="trend-ctx-val" id="trend-ctx-2025" style="color:var(--txt-faint);">—</div>
+            </div>
+            <div class="trend-ctx-row">
+              <div class="trend-ctx-lbl" id="trend-ctx-2026-lbl">2026 · até aqui</div>
+              <div class="trend-ctx-val" id="trend-ctx-2026" style="color:var(--trend-blue);">—</div>
+              <div class="trend-ctx-delta" id="trend-ctx-2026-delta">—</div>
+            </div>
           </div>
           <div class="trend-chart-wrap" id="trend-chart"></div>
         </div>
@@ -576,6 +589,7 @@
           <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--trend-blue);"></span>2026 (real)</span>
           <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--txt-faint);border-top-style:dashed;"></span>2025</span>
           <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--trend-blue-lt);border-top-style:dotted;"></span>Tendência (projeção até dez.)</span>
+          <span class="trend-leg-item"><span class="trend-leg-box" style="background:rgba(30,122,66,0.16);border-color:#1E7A42;"></span><span class="trend-leg-box" style="background:rgba(184,36,24,0.14);border-color:#B82418;"></span>Variação vs 2025 (mês fechado)</span>
         </div>
       </div>
     </div>
@@ -671,7 +685,7 @@
   <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Relacionamento / Lig Chopp Germânia</span>
 </div></div>
 
-<script src="script.js?v=43"></script>
+<script src="script.js?v=44"></script>
 <script>/* garante mês atual mesmo se script.js em cache tiver versão antiga */
 (function(){var m=document.getElementById('f-mes');if(m)m.value=String(new Date().getMonth()+1);})();
 </script>
