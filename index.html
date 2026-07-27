@@ -557,44 +557,6 @@
     </div>
   </div>
 
-  <!-- ROW TENDÊNCIA — full width, visão anual (Jan-Dez): 2026 real x 2025 x projeção pelo ritmo do ano até aqui -->
-  <div class="row row-1col" id="row-trend">
-    <div class="card" data-s="none">
-      <div class="card-ab card-ab-trend">
-        <div class="c-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:14px;">
-          <div>
-            <div class="c-title pill-trend" id="trend-title">Tendência de Faturamento</div>
-            <div class="c-sub">Mensal no ano · 2026 vs 2025 + projeção até dezembro pelo ritmo feito até aqui</div>
-          </div>
-          <label class="metric-toggle" onclick="toggleTrendMetric()" title="Alternar métrica">
-            <span class="metric-toggle-lbl" id="trend-metric-lbl">Faturamento</span>
-            <span class="metric-toggle-track"><span class="metric-toggle-thumb"></span></span>
-          </label>
-        </div>
-        <div class="trend-body">
-          <div class="trend-ctx">
-            <div class="trend-ctx-row">
-              <div class="trend-ctx-lbl">2025 · ano fechado</div>
-              <div class="trend-ctx-val" id="trend-ctx-2025" style="color:var(--txt-faint);">—</div>
-            </div>
-            <div class="trend-ctx-row">
-              <div class="trend-ctx-lbl" id="trend-ctx-2026-lbl">2026 · até aqui</div>
-              <div class="trend-ctx-val" id="trend-ctx-2026" style="color:var(--trend-blue);">—</div>
-              <div class="trend-ctx-delta" id="trend-ctx-2026-delta">—</div>
-            </div>
-          </div>
-          <div class="trend-chart-wrap" id="trend-chart"></div>
-        </div>
-        <div class="trend-legend">
-          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--trend-blue);"></span>2026 (real)</span>
-          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--txt-faint);border-top-style:dashed;"></span>2025</span>
-          <span class="trend-leg-item"><span class="trend-leg-swatch" style="border-color:var(--trend-blue-lt);border-top-style:dotted;"></span>Tendência (projeção até dez.)</span>
-          <span class="trend-leg-item"><span class="trend-leg-box" style="background:rgba(30,122,66,0.16);border-color:#1E7A42;"></span><span class="trend-leg-box" style="background:rgba(184,36,24,0.14);border-color:#B82418;"></span>Variação vs 2025 (mês fechado)</span>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- ROW 3 — sparklines -->
   <div class="row">
 
@@ -685,7 +647,7 @@
   <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Relacionamento / Lig Chopp Germânia</span>
 </div></div>
 
-<script src="script.js?v=44"></script>
+<script src="script.js?v=45"></script>
 <script>/* garante mês atual mesmo se script.js em cache tiver versão antiga */
 (function(){var m=document.getElementById('f-mes');if(m)m.value=String(new Date().getMonth()+1);})();
 </script>

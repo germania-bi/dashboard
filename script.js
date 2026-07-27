@@ -1109,70 +1109,8 @@ function go(){
     }
   }
 
-  // Tendência (Faturamento ou Litros, via interruptor) — full width, visão anual fixa (Jan-Dez):
-  // 2026 real até o mês corrente x 2025 x projeção até dezembro pelo ritmo médio já feito em 2026.
-  // Independe do filtro de mês/semana/trimestre — é sempre o retrato do ano inteiro.
-  {
-    const isLitros = trendMetric === 'litros';
-    const indKey = isLitros ? 'Litros vendidos' : 'Faturamento';
-    const fmtVal = isLitros ? (v=>fmt(Math.round(v))+'L') : fR;
-    const fmtAxis = isLitros ? (v=>fmt(Math.round(v))+'L') : (v=>'R$'+Math.round(v/1000)+'k');
-    const fmtTotal = v => isLitros ? fmt(Math.round(v))+' L' : 'R$ '+fmt(Math.round(v));
-    const titleEl = document.getElementById('trend-title');
-    if (titleEl) titleEl.textContent = 'Tendência de ' + (isLitros ? 'Litros' : 'Faturamento');
-
-    const MNAMES = ['','Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
-    const months = [1,2,3,4,5,6,7,8,9,10,11,12].map(m => {
-      const atualSum = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.res||0),0);
-      const antSum   = [1,2,3,4].reduce((a,s)=>a+(SEMANAL_RAW[indKey]?.[m]?.[s]?.anoAnt||0),0);
-      return { l: MNAMES[m], atual: atualSum>0?atualSum:null, anoAnt: antSum>0?antSum:null };
-    });
-    const completedM = months.filter(w=>w.atual!=null);
-    const totalAtual = completedM.reduce((a,w)=>a+w.atual,0);
-    const totalAnoAnt = months.reduce((a,w)=>a+(w.anoAnt||0),0);
-    const remaining = months.length - completedM.length;
-    const avgAtual = completedM.length ? totalAtual/completedM.length : 0;
-    const totalProjetado = remaining>0 ? totalAtual + avgAtual*remaining : totalAtual;
-
-    // callout no ponto final do gráfico (projeção de fechamento, ou total fechado se o ano já acabou)
-    let callout = null;
-    if (completedM.length) {
-      if (totalAnoAnt) {
-        const pct = (totalProjetado - totalAnoAnt) / totalAnoAnt * 100;
-        callout = {
-          value: fmtTotal(totalProjetado),
-          pct: (pct>=0?'↑ ':'↓ ') + Math.abs(Math.round(pct)) + '% vs 2025' + (remaining>0?' (projeção)':''),
-          color: pct>=0 ? '#1E7A42' : '#B82418'
-        };
-      } else {
-        callout = { value: fmtTotal(totalProjetado), pct: (remaining>0?'Projeção de fechamento':'Ano fechado') + ' · sem base 2025', color: '#9A9A9A' };
-      }
-    }
-    requestAnimationFrame(()=> renderTrend('trend-chart', months, fmtVal, fmtAxis, callout));
-
-    // caixa de contexto: como 2025 fechou vs como 2026 está indo até aqui (comparação nos mesmos meses)
-    const mesesComparaveis = months.filter(w=>w.atual!=null && w.anoAnt!=null);
-    const totalAnoAntComparavel = mesesComparaveis.reduce((a,w)=>a+w.anoAnt,0);
-    const ultimoMes = completedM.length ? completedM[completedM.length-1].l : '';
-    const ctxLblEl = document.getElementById('trend-ctx-2026-lbl');
-    const ctx2025El = document.getElementById('trend-ctx-2025');
-    const ctx2026El = document.getElementById('trend-ctx-2026');
-    const ctxDeltaEl = document.getElementById('trend-ctx-2026-delta');
-    if (ctxLblEl) ctxLblEl.textContent = '2026 · até ' + (ultimoMes || 'aqui');
-    if (ctx2025El) ctx2025El.textContent = totalAnoAnt ? fmtTotal(totalAnoAnt) : '—';
-    if (ctx2026El) ctx2026El.textContent = completedM.length ? fmtTotal(totalAtual) : '—';
-    if (ctxDeltaEl) {
-      if (!completedM.length) {
-        ctxDeltaEl.textContent = '—'; ctxDeltaEl.style.color = '#9A9A9A';
-      } else if (!totalAnoAntComparavel) {
-        ctxDeltaEl.textContent = 'sem base 2025'; ctxDeltaEl.style.color = '#9A9A9A';
-      } else {
-        const pctSoFar = (totalAtual - totalAnoAntComparavel) / totalAnoAntComparavel * 100;
-        ctxDeltaEl.textContent = (pctSoFar>=0?'↑ ':'↓ ') + Math.abs(Math.round(pctSoFar)) + '% vs mesmos meses 2025';
-        ctxDeltaEl.style.color = pctSoFar>=0 ? '#1E7A42' : '#B82418';
-      }
-    }
-  }
+  // Tendência — card removido temporariamente (feedback: ficou estranho). renderTrend()/toggleTrendMetric()
+  // continuam definidos abaixo, sem uso, pra retomar depois sem refazer do zero.
 
   hkpi('hk-lit','hv-lit','ht-lit',tLit,mrL,v=>fmt(Math.round(v))+'<span class="u"> L</span>');
   hkpi('hk-rec','hv-rec','ht-rec',tRec,mrR,v=>'R$'+Math.round(v/1000)+'k');
