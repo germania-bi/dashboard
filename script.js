@@ -175,6 +175,21 @@ function sumSemanal(indicador, weeks) {
   return {meta, res, anoAnt};
 }
 
+// Soma um período de comparação (ex: mês anterior) só nas semanas que já têm par no período atual —
+// mesma lógica do anoAnt acima, pra não comparar mês corrente parcial contra mês anterior fechado.
+function sumSemanalProrated(indicador, currentWeeks, compareWeeks) {
+  let res = 0;
+  compareWeeks.forEach((cw, i) => {
+    const curW = currentWeeks[i];
+    if (!curW) return;
+    const curD = SEMANAL_RAW[indicador]?.[curW.mes]?.[curW.sem];
+    if (!curD || !(curD.res > 0)) return;
+    const cmpD = SEMANAL_RAW[indicador]?.[cw.mes]?.[cw.sem];
+    if (cmpD) res += cmpD.res || 0;
+  });
+  return { res };
+}
+
 /* ── PARSER EZ TICKETS ── */
 const EZ_EXCLUIR = ['Mirian']; // sempre excluídos (Lídia/Raíza saem por período — sem tickets no período = não aparecem)
 const METAS_EXCLUIR = []; // exclusão por período via meta>0 no sheet
@@ -1019,12 +1034,14 @@ function go(){
   }
   const prevPeriod = prevPeriodWeeks();
   const prevLabel  = prevPeriod?.label;
-  const alcPrev = prevPeriod ? sumSemanal('Alcance', prevPeriod.weeks) : null;
-  const atPrev  = prevPeriod ? sumSemanal('Engajamento / Atendimento', prevPeriod.weeks) : null;
-  const orcPrev = prevPeriod ? sumSemanal('Orçamentos', prevPeriod.weeks) : null;
-  const pedPrev = prevPeriod ? sumSemanal('Pedidos', prevPeriod.weeks) : null;
-  const litPrev = prevPeriod ? sumSemanal('Litros vendidos', prevPeriod.weeks) : null;
-  const fatPrev = prevPeriod ? sumSemanal('Faturamento', prevPeriod.weeks) : null;
+  // Prorateado: só soma a semana do período anterior se a semana correspondente do período atual
+  // já tiver dado — evita comparar mês corrente parcial (ex: só S1-S3 preenchidas) com mês anterior fechado.
+  const alcPrev = prevPeriod ? sumSemanalProrated('Alcance', weeks, prevPeriod.weeks) : null;
+  const atPrev  = prevPeriod ? sumSemanalProrated('Engajamento / Atendimento', weeks, prevPeriod.weeks) : null;
+  const orcPrev = prevPeriod ? sumSemanalProrated('Orçamentos', weeks, prevPeriod.weeks) : null;
+  const pedPrev = prevPeriod ? sumSemanalProrated('Pedidos', weeks, prevPeriod.weeks) : null;
+  const litPrev = prevPeriod ? sumSemanalProrated('Litros vendidos', weeks, prevPeriod.weeks) : null;
+  const fatPrev = prevPeriod ? sumSemanalProrated('Faturamento', weeks, prevPeriod.weeks) : null;
 
   function setEvo(id, res, ant) {
     const el = document.getElementById(id+'-evo');
