@@ -261,6 +261,14 @@ function getMetasData(mes) {
   return METAS_RAW.filter(d => d.mes === mes);
 }
 
+// Visão de cada card de agente em Gestão de Metas: 'meta' (padrão) ou 'performance' (conversão por fase).
+// Estado por agente, persiste entre re-renders (troca de filtro etc.) até a página recarregar.
+let metasAgentView = {};
+function toggleAgentView(ag) {
+  metasAgentView[ag] = metasAgentView[ag] === 'performance' ? 'meta' : 'performance';
+  renderMetas();
+}
+
 
 /* ══ RENDER ABA METAS ══ */
 let metasRendered = false;
@@ -404,11 +412,35 @@ function renderMetas() {
   // (só tem Orçamentos/Pedidos/Faturamento/Litros) — entra como linha "ainda não disponível" até a base
   // ganhar essa coluna; assim que existir um indicador "Atendimentos" pro agente, aparece com dado real.
   const ORDEM_INDICADORES = ['Atendimentos', 'Orçamentos', 'Pedidos', 'Faturamento', 'Litros'];
+  const TIPO_INDICADOR = { 'Atendimentos':'count', 'Orçamentos':'count', 'Pedidos':'count', 'Faturamento':'money', 'Litros':'vol' };
+
+  // Visão "Performance": valor real por fase + conversão % entre fases de contagem (Atendimentos→Orçamentos→Pedidos).
+  // Faturamento/Litros não têm conversão — são R$/volume, não contagem, então a razão não seria uma taxa real.
+  function buildPerformanceHTML(displayRows) {
+    return displayRows.map((r, i) => {
+      const prev = i > 0 ? displayRows[i-1] : null;
+      const showCvr = prev && prev.tracked && r.tracked
+        && TIPO_INDICADOR[prev.indicador] === 'count' && TIPO_INDICADOR[r.indicador] === 'count' && prev.real > 0;
+      const cvr = showCvr ? Math.round(r.real / prev.real * 100) + '%' : null;
+      const valStr = r.tracked ? fmtV(r.indicador, r.real) : '—';
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;${i>0?'border-top:1px dashed rgba(180,165,140,0.12);':''}">
+          <div style="display:flex;align-items:center;gap:7px;">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.6px;color:var(--txt-faint);text-transform:uppercase;">${r.indicador}</span>
+            ${cvr ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--txt-faint);">→ ${cvr}</span>` : ''}
+          </div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:${r.tracked?'var(--txt)':'var(--txt-faint)'};">${valStr}</span>
+        </div>`;
+    }).join('');
+  }
+
   let agentesHTML = agentes.map(ag => {
     const rawRows = dados.filter(d => d.agente === ag);
-    const displayRows = ORDEM_INDICADORES.map(ind =>
-      rawRows.find(r => r.indicador === ind) || { agente: ag, indicador: ind, mes, meta: 0, real: 0 }
-    );
+    const displayRows = ORDEM_INDICADORES.map(ind => {
+      const found = rawRows.find(r => r.indicador === ind);
+      return found ? { ...found, tracked: true } : { agente: ag, indicador: ind, mes, meta: 0, real: 0, tracked: false };
+    });
+    const view = metasAgentView[ag] === 'performance' ? 'performance' : 'meta';
     const cards = displayRows.map(r => {
       const hasMeta = r.meta > 0;
       const pct = hasMeta ? Math.min(r.real/r.meta*100,100) : 0;
@@ -440,11 +472,17 @@ function renderMetas() {
     return `
     <div class="card line-l3" data-s="none" style="height:auto;">
       <div class="card-ab" style="height:auto;padding-bottom:16px;">
-        <div class="c-header">
-          <div class="c-title pill-l3">${ag}</div>
-          <div class="c-sub" style="color:${cAg};font-weight:600;">${Math.round(medPct)}% da meta</div>
+        <div class="c-header" style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+          <div>
+            <div class="c-title pill-l3">${ag}</div>
+            <div class="c-sub" style="color:${cAg};font-weight:600;">${Math.round(medPct)}% da meta</div>
+          </div>
+          <label class="metric-toggle${view==='performance'?' on':''}" onclick="toggleAgentView('${ag}')" title="Alternar entre meta e performance por fase">
+            <span class="metric-toggle-lbl">${view==='performance'?'Performance':'Meta'}</span>
+            <span class="metric-toggle-track"><span class="metric-toggle-thumb"></span></span>
+          </label>
         </div>
-        <div style="margin-top:14px;">${cards}</div>
+        <div style="margin-top:14px;">${view==='performance' ? buildPerformanceHTML(displayRows) : cards}</div>
       </div>
     </div>`;
   }).join('');
