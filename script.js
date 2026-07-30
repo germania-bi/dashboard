@@ -399,48 +399,19 @@ function renderMetas() {
     </div>`;
   }).join('');
 
-  // ── Funil individual por agente: Atendimentos → Orçamentos → Pedidos → Faturamento → Litros.
-  // Atendimentos ainda não existe na planilha de Metas (só tem Orçamentos/Pedidos/Faturamento/Litros) —
-  // fica "—" até a base ganhar essa coluna por agente; o resto do funil já funciona hoje.
-  const FUNNEL_STAGES = [
-    { lbl: 'Atendimentos', match: ['Atendimentos', 'Atendimento', 'Engajamento / Atendimento'], type: 'count' },
-    { lbl: 'Orçamentos',   match: ['Orçamentos'],                                                type: 'count' },
-    { lbl: 'Pedidos',      match: ['Pedidos'],                                                    type: 'count' },
-    { lbl: 'Faturamento',  match: ['Faturamento', 'Receita'],                                     type: 'money' },
-    { lbl: 'Litros',       match: ['Litros', 'Litros vendidos'],                                  type: 'vol' },
-  ];
-  function buildFunnelHTML(rows) {
-    const stages = FUNNEL_STAGES.map(s => {
-      const row = rows.find(r => s.match.includes(r.indicador));
-      return { ...s, val: row ? row.real : null };
-    });
-    const itemsHTML = stages.map((s, i) => {
-      const prev = i > 0 ? stages[i-1] : null;
-      const showCvr = prev && prev.type === 'count' && s.type === 'count' && prev.val > 0 && s.val != null;
-      const cvr = showCvr ? Math.round(s.val / prev.val * 100) + '%' : null;
-      const valStr = s.val != null ? fmtV(s.match[0], s.val) : '—';
-      return `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;${i>0?'border-top:1px dashed rgba(180,165,140,0.12);':''}">
-          <div style="display:flex;align-items:center;gap:6px;">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:12.5px;color:var(--txt-mid);">${s.lbl}</span>
-            ${cvr ? `<span style="font-size:10px;color:var(--txt-faint);">→ ${cvr}</span>` : ''}
-          </div>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:${s.val!=null?'var(--txt)':'var(--txt-faint)'};">${valStr}</span>
-        </div>`;
-    }).join('');
-    return `
-    <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(180,165,140,0.12);">
-      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:0.8px;
-        color:var(--txt-faint);text-transform:uppercase;margin-bottom:2px;">Funil individual</div>
-      ${itemsHTML}
-    </div>`;
-  }
-
   // ── Seção 2: Agentes ──
+  // Ordem fixa igual ao funil de vendas. Atendimentos ainda não existe na planilha de Metas por agente
+  // (só tem Orçamentos/Pedidos/Faturamento/Litros) — entra como linha "ainda não disponível" até a base
+  // ganhar essa coluna; assim que existir um indicador "Atendimentos" pro agente, aparece com dado real.
+  const ORDEM_INDICADORES = ['Atendimentos', 'Orçamentos', 'Pedidos', 'Faturamento', 'Litros'];
   let agentesHTML = agentes.map(ag => {
-    const rows = dados.filter(d => d.agente === ag);
-    const cards = rows.map(r => {
-      const pct = r.meta ? Math.min(r.real/r.meta*100,100) : 0;
+    const rawRows = dados.filter(d => d.agente === ag);
+    const displayRows = ORDEM_INDICADORES.map(ind =>
+      rawRows.find(r => r.indicador === ind) || { agente: ag, indicador: ind, mes, meta: 0, real: 0 }
+    );
+    const cards = displayRows.map(r => {
+      const hasMeta = r.meta > 0;
+      const pct = hasMeta ? Math.min(r.real/r.meta*100,100) : 0;
       const c   = cor(r.real, r.meta);
       return `
         <div style="margin-bottom:14px;">
@@ -454,13 +425,16 @@ function renderMetas() {
               color:${c};min-width:38px;text-align:right;">${badge(r.real,r.meta)}</span>
           </div>
           <div style="display:flex;justify-content:space-between;margin-top:4px;">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}</span></span>
+            ${hasMeta
+              ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}</span></span>`
+              : `<span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-style:italic;color:var(--txt-faint);">ainda não disponível na base</span>`
+            }
           </div>
         </div>`;
     }).join('');
 
-    // Calcular % médio do agente para ranking
-    const medPct = rows.reduce((s,r) => s + (r.meta ? r.real/r.meta*100 : 0), 0) / Math.max(rows.length, 1);
+    // Calcular % médio do agente para ranking — só indicadores reais (com meta), Atendimentos sintético não entra
+    const medPct = rawRows.reduce((s,r) => s + (r.meta ? r.real/r.meta*100 : 0), 0) / Math.max(rawRows.length, 1);
     const cAg    = cor(medPct, 100);
 
     return `
@@ -471,7 +445,6 @@ function renderMetas() {
           <div class="c-sub" style="color:${cAg};font-weight:600;">${Math.round(medPct)}% da meta</div>
         </div>
         <div style="margin-top:14px;">${cards}</div>
-        ${buildFunnelHTML(rows)}
       </div>
     </div>`;
   }).join('');
