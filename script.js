@@ -969,8 +969,8 @@ function go(){
   const tmP=tPed?tRec/tPed:0, tmL=tPed?tLit/tPed:0, rL=tLit?tRec/tLit:0;
   const nSem=weeks.length||1;
   const aL=tLit/nSem, aR=tRec/nSem;
-  const sAlc=st(tAlc,mrAlc),sAt=st(tAt,mrAt);
-  const sO=st(tOrc,mrO),sL=st(tLit,mrL),sR=st(tRec,mrR),sP=st(tPed,mrP);
+  const sAlc=st(tAlc,alc.anoAnt),sAt=st(tAt,at.anoAnt);
+  const sO=st(tOrc,orc.anoAnt),sL=st(tLit,lit.anoAnt),sR=st(tRec,fat.anoAnt),sP=st(tPed,ped.anoAnt);
 
   document.getElementById('v-alc').textContent=fmt(Math.round(tAlc));
   document.getElementById('v-at').textContent=fmt(Math.round(tAt));
@@ -997,45 +997,65 @@ function go(){
   document.getElementById('bz-tl').textContent='~'+tmL.toFixed(1)+' L por evento';
   document.getElementById('bz-rl').textContent='~R$ '+rL.toFixed(2).replace('.',',')+' por litro vendido';
 
-  // Evolução vs ano anterior
-  function fmtEvo(res, ant) {
-    if (!ant) return '—';
-    const pct = ((res - ant) / ant * 100);
-    const arrow = pct >= 0 ? '↑' : '↓';
-    const color = pct >= 0 ? '#1E7A42' : '#B82418';
-    const el = document.createElement ? null : null; // inline via textContent + style
-    return { txt: arrow+' '+Math.abs(Math.round(pct))+'% vs 2025', color };
+  // Evolução vs período anterior (mês/semana/trimestre anterior) — o anel circular já cobre vs 2025,
+  // então aqui entra uma leitura de curto prazo (momentum), reaproveitando a mesma planilha semanal.
+  function prevPeriodWeeks() {
+    if (mesRaw === 0) return null; // ano completo: "período anterior" seria o ano passado inteiro = redundante com o anel
+    if (tri && TRI_MESES[tri]) {
+      if (tri === 1) return null; // Q4 do ano anterior não existe na base
+      const w = [];
+      TRI_MESES[tri-1].forEach(m => [1,2,3,4].forEach(s => w.push({mes:m, sem:s})));
+      return { weeks: w, label: 'trimestre anterior' };
+    }
+    if (sem > 0) {
+      if (sem === 1) {
+        if (mes === 1) return null; // dezembro do ano anterior não existe na base
+        return { weeks: [{mes: mes-1, sem: 4}], label: 'semana anterior' };
+      }
+      return { weeks: [{mes, sem: sem-1}], label: 'semana anterior' };
+    }
+    if (mes === 1) return null; // dezembro do ano anterior não existe na base
+    return { weeks: [1,2,3,4].map(s => ({mes: mes-1, sem: s})), label: 'mês anterior' };
   }
+  const prevPeriod = prevPeriodWeeks();
+  const prevLabel  = prevPeriod?.label;
+  const alcPrev = prevPeriod ? sumSemanal('Alcance', prevPeriod.weeks) : null;
+  const atPrev  = prevPeriod ? sumSemanal('Engajamento / Atendimento', prevPeriod.weeks) : null;
+  const orcPrev = prevPeriod ? sumSemanal('Orçamentos', prevPeriod.weeks) : null;
+  const pedPrev = prevPeriod ? sumSemanal('Pedidos', prevPeriod.weeks) : null;
+  const litPrev = prevPeriod ? sumSemanal('Litros vendidos', prevPeriod.weeks) : null;
+  const fatPrev = prevPeriod ? sumSemanal('Faturamento', prevPeriod.weeks) : null;
+
   function setEvo(id, res, ant) {
     const el = document.getElementById(id+'-evo');
     if (!el) return;
-    if (!ant) { el.textContent = '—'; el.style.color = '#9BA8B0'; return; }
+    if (!prevLabel || !ant) { el.textContent = '—'; el.style.color = '#9BA8B0'; return; }
     const pct = (res - ant) / ant * 100;
-    el.textContent = (pct >= 0 ? '↑ ' : '↓ ') + Math.abs(Math.round(pct)) + '% vs 2025';
+    el.textContent = (pct >= 0 ? '↑ ' : '↓ ') + Math.abs(Math.round(pct)) + '% vs ' + prevLabel;
     el.style.color = pct >= 0 ? '#1E7A42' : '#B82418';
   }
-  setEvo('bz-alc', tAlc, alc.anoAnt);
-  // tAt: contagem EZ (atual). anoAnt: baseline histórico da planilha Semanal (EZ não tem dados do ano anterior)
-  setEvo('bz-at',  tAt,  at.anoAnt);
-  setEvo('bz-orc', tOrc, orc.anoAnt);
-  setEvo('bz-ped', tPed, ped.anoAnt);
-  setEvo('bz-lit', tLit, lit.anoAnt);
-  setEvo('bz-rec', tRec, fat.anoAnt);
+  setEvo('bz-alc', tAlc, alcPrev?.res);
+  // tAt: contagem EZ (atual); comparação usa o resultado da planilha no período anterior
+  setEvo('bz-at',  tAt,  atPrev?.res);
+  setEvo('bz-orc', tOrc, orcPrev?.res);
+  setEvo('bz-ped', tPed, pedPrev?.res);
+  setEvo('bz-lit', tLit, litPrev?.res);
+  setEvo('bz-rec', tRec, fatPrev?.res);
 
   setS('c-orc',sO);setS('c-ped',sP);setS('c-lit',sL);setS('c-rec',sR);
-  setTip('ct-alc','Meta: '+fmt(Math.round(mrAlc))+' · Real: '+fmt(Math.round(tAlc)));
-  setTip('ct-at','Meta: '+fmt(Math.round(mrAt))+' · Real: '+fmt(Math.round(tAt)));
-  setTip('ct-orc','Meta: '+fmt(Math.round(mrO))+' · Real: '+fmt(Math.round(tOrc)));
-  setTip('ct-ped','Meta: '+fmt(Math.round(mrP))+' · Real: '+fmt(Math.round(tPed)));
-  setTip('ct-lit','Meta: '+fmt(Math.round(mrL))+'L · Real: '+fmt(Math.round(tLit))+'L');
-  setTip('ct-rec','Meta: R$ '+fmt(Math.round(mrR))+' · Real: R$ '+fmt(Math.round(tRec)));
+  setTip('ct-alc','2025: '+fmt(Math.round(alc.anoAnt))+' · 2026: '+fmt(Math.round(tAlc)));
+  setTip('ct-at','2025: '+fmt(Math.round(at.anoAnt))+' · 2026: '+fmt(Math.round(tAt)));
+  setTip('ct-orc','2025: '+fmt(Math.round(orc.anoAnt))+' · 2026: '+fmt(Math.round(tOrc)));
+  setTip('ct-ped','2025: '+fmt(Math.round(ped.anoAnt))+' · 2026: '+fmt(Math.round(tPed)));
+  setTip('ct-lit','2025: '+fmt(Math.round(lit.anoAnt))+'L · 2026: '+fmt(Math.round(tLit))+'L');
+  setTip('ct-rec','2025: R$ '+fmt(Math.round(fat.anoAnt))+' · 2026: R$ '+fmt(Math.round(tRec)));
 
-  circ('ci-alc',mrAlc?(tAlc/mrAlc*100):0,SC[sAlc],pl(Math.round(tAlc),Math.round(mrAlc)));
-  circ('ci-at',mrAt?(tAt/mrAt*100):0,SC[sAt],pl(Math.round(tAt),Math.round(mrAt)));
-  circ('ci-orc',mrO?(tOrc/mrO*100):0,SC[sO],pl(tOrc,mrO));
-  circ('ci-ped',mrP?(tPed/mrP*100):0,SC[sP],pl(tPed,mrP));
-  circ('ci-lit',mrL?(tLit/mrL*100):0,SC[sL],pl(Math.round(tLit),Math.round(mrL)));
-  circ('ci-rec',mrR?(tRec/mrR*100):0,SC[sR],pl(Math.round(tRec),Math.round(mrR)));
+  circ('ci-alc',alc.anoAnt?(tAlc/alc.anoAnt*100):0,SC[sAlc],pl(Math.round(tAlc),Math.round(alc.anoAnt)));
+  circ('ci-at',at.anoAnt?(tAt/at.anoAnt*100):0,SC[sAt],pl(Math.round(tAt),Math.round(at.anoAnt)));
+  circ('ci-orc',orc.anoAnt?(tOrc/orc.anoAnt*100):0,SC[sO],pl(tOrc,orc.anoAnt));
+  circ('ci-ped',ped.anoAnt?(tPed/ped.anoAnt*100):0,SC[sP],pl(tPed,ped.anoAnt));
+  circ('ci-lit',lit.anoAnt?(tLit/lit.anoAnt*100):0,SC[sL],pl(Math.round(tLit),Math.round(lit.anoAnt)));
+  circ('ci-rec',fat.anoAnt?(tRec/fat.anoAnt*100):0,SC[sR],pl(Math.round(tRec),Math.round(fat.anoAnt)));
 
   // Sparklines — filtra semanas sem dados para evitar quedas bruscas para zero
   {
