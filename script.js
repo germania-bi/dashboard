@@ -399,6 +399,43 @@ function renderMetas() {
     </div>`;
   }).join('');
 
+  // ── Funil individual por agente: Atendimentos → Orçamentos → Pedidos → Faturamento → Litros.
+  // Atendimentos ainda não existe na planilha de Metas (só tem Orçamentos/Pedidos/Faturamento/Litros) —
+  // fica "—" até a base ganhar essa coluna por agente; o resto do funil já funciona hoje.
+  const FUNNEL_STAGES = [
+    { lbl: 'Atendimentos', match: ['Atendimentos', 'Atendimento', 'Engajamento / Atendimento'], type: 'count' },
+    { lbl: 'Orçamentos',   match: ['Orçamentos'],                                                type: 'count' },
+    { lbl: 'Pedidos',      match: ['Pedidos'],                                                    type: 'count' },
+    { lbl: 'Faturamento',  match: ['Faturamento', 'Receita'],                                     type: 'money' },
+    { lbl: 'Litros',       match: ['Litros', 'Litros vendidos'],                                  type: 'vol' },
+  ];
+  function buildFunnelHTML(rows) {
+    const stages = FUNNEL_STAGES.map(s => {
+      const row = rows.find(r => s.match.includes(r.indicador));
+      return { ...s, val: row ? row.real : null };
+    });
+    const itemsHTML = stages.map((s, i) => {
+      const prev = i > 0 ? stages[i-1] : null;
+      const showCvr = prev && prev.type === 'count' && s.type === 'count' && prev.val > 0 && s.val != null;
+      const cvr = showCvr ? Math.round(s.val / prev.val * 100) + '%' : null;
+      const valStr = s.val != null ? fmtV(s.match[0], s.val) : '—';
+      return `
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:5px 0;${i>0?'border-top:1px dashed rgba(180,165,140,0.12);':''}">
+          <div style="display:flex;align-items:center;gap:6px;">
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:12.5px;color:var(--txt-mid);">${s.lbl}</span>
+            ${cvr ? `<span style="font-size:10px;color:var(--txt-faint);">→ ${cvr}</span>` : ''}
+          </div>
+          <span style="font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:700;color:${s.val!=null?'var(--txt)':'var(--txt-faint)'};">${valStr}</span>
+        </div>`;
+    }).join('');
+    return `
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid rgba(180,165,140,0.12);">
+      <div style="font-family:'Barlow Condensed',sans-serif;font-size:11px;letter-spacing:0.8px;
+        color:var(--txt-faint);text-transform:uppercase;margin-bottom:2px;">Funil individual</div>
+      ${itemsHTML}
+    </div>`;
+  }
+
   // ── Seção 2: Agentes ──
   let agentesHTML = agentes.map(ag => {
     const rows = dados.filter(d => d.agente === ag);
@@ -434,6 +471,7 @@ function renderMetas() {
           <div class="c-sub" style="color:${cAg};font-weight:600;">${Math.round(medPct)}% da meta</div>
         </div>
         <div style="margin-top:14px;">${cards}</div>
+        ${buildFunnelHTML(rows)}
       </div>
     </div>`;
   }).join('');
