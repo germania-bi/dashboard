@@ -264,9 +264,18 @@ function getMetasData(mes) {
 // Visão de cada card de agente em Gestão de Metas: 'meta' (padrão) ou 'performance' (conversão por fase).
 // Estado por agente, persiste entre re-renders (troca de filtro etc.) até a página recarregar.
 let metasAgentView = {};
-function toggleAgentView(ag) {
-  metasAgentView[ag] = metasAgentView[ag] === 'performance' ? 'meta' : 'performance';
-  renderMetas();
+function toggleAgentView(ag, btn) {
+  const card = btn.closest('.card');
+  if (!card) return;
+  const nowPerf = metasAgentView[ag] !== 'performance';
+  metasAgentView[ag] = nowPerf ? 'performance' : 'meta';
+  const metaEl = card.querySelector('.metas-view-meta');
+  const perfEl = card.querySelector('.metas-view-perf');
+  if (metaEl) metaEl.style.display = nowPerf ? 'none' : '';
+  if (perfEl) perfEl.style.display = nowPerf ? '' : 'none';
+  const lbl = btn.querySelector('.metric-toggle-lbl');
+  if (lbl) lbl.textContent = nowPerf ? 'Performance' : 'Meta';
+  btn.classList.toggle('on', nowPerf);
 }
 
 
@@ -408,28 +417,63 @@ function renderMetas() {
   }).join('');
 
   // ── Seção 2: Agentes ──
-  // Ordem fixa igual ao funil de vendas. Atendimentos ainda não existe na planilha de Metas por agente
-  // (só tem Orçamentos/Pedidos/Faturamento/Litros) — entra como linha "ainda não disponível" até a base
-  // ganhar essa coluna; assim que existir um indicador "Atendimentos" pro agente, aparece com dado real.
+  // Ordem fixa igual ao funil de vendas. Orçamentos/Pedidos/Faturamento/Litros vêm da planilha de Metas.
+  // Atendimentos ainda não tem META na planilha, mas o REAL já dá pra puxar do EZ_TICKETS (mesma fonte da
+  // aba Performance Atendimento) — só falta a meta ser definida. Nomes divergem entre bases
+  // (EZ: "Raiza"/"Marciano"/"Dayane" · Metas: "Raíza"/"Marciano Luis"/"Dayane Santos"), daí a normalização.
   const ORDEM_INDICADORES = ['Atendimentos', 'Orçamentos', 'Pedidos', 'Faturamento', 'Litros'];
-  const TIPO_INDICADOR = { 'Atendimentos':'count', 'Orçamentos':'count', 'Pedidos':'count', 'Faturamento':'money', 'Litros':'vol' };
+  const normAg = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+  function computeAtendimentosEZ(agenteNome) {
+    const alvo = normAg(agenteNome).split(' ')[0];
+    const doAgente = EZ_TICKETS.filter(t => normAg(t.Agente) === alvo);
+    if (mesRawM === 0) {
+      const ano = new Date().getFullYear();
+      return doAgente.filter(t => t.DataStr >= `${ano}-01-01` && t.DataStr <= `${ano}-12-31`).length;
+    }
+    if (triSelM && TRI_MAP[triSelM]) {
+      return doAgente.filter(t => TRI_MAP[triSelM].includes(parseInt(t.DataStr.slice(5,7)))).length;
+    }
+    if (semSel > 0) {
+      const r = getDateRangeForFilter(mes, semSel);
+      return doAgente.filter(t => t.DataStr >= r.de && t.DataStr <= r.ate).length;
+    }
+    if (isCurrentMonth && effectiveSem > 0) {
+      const rStart = getDateRangeForFilter(mes, 0), rEnd = getDateRangeForFilter(mes, effectiveSem);
+      return doAgente.filter(t => t.DataStr >= rStart.de && t.DataStr <= rEnd.ate).length;
+    }
+    const r = getDateRangeForFilter(mes, 0);
+    return doAgente.filter(t => t.DataStr >= r.de && t.DataStr <= r.ate).length;
+  }
 
-  // Visão "Performance": valor real por fase + conversão % entre fases de contagem (Atendimentos→Orçamentos→Pedidos).
-  // Faturamento/Litros não têm conversão — são R$/volume, não contagem, então a razão não seria uma taxa real.
-  function buildPerformanceHTML(displayRows) {
-    return displayRows.map((r, i) => {
-      const prev = i > 0 ? displayRows[i-1] : null;
-      const showCvr = prev && prev.tracked && r.tracked
-        && TIPO_INDICADOR[prev.indicador] === 'count' && TIPO_INDICADOR[r.indicador] === 'count' && prev.real > 0;
-      const cvr = showCvr ? Math.round(r.real / prev.real * 100) + '%' : null;
-      const valStr = r.tracked ? fmtV(r.indicador, r.real) : '—';
+  // Visão "Performance": mesmo visual das barras de Meta, só troca % de atingimento por % de conversão
+  // entre fases de contagem (Atendimentos→Orçamentos, Orçamentos→Pedidos). Faturamento/Litros ficam de
+  // fora — são R$/volume, não contagem, então não têm uma "conversão" de verdade.
+  function buildPerformanceHTML(byName) {
+    const transicoes = [
+      { de: 'Atendimentos', para: 'Orçamentos', label: 'Atendimentos → Orçamentos' },
+      { de: 'Orçamentos',   para: 'Pedidos',     label: 'Orçamentos → Pedidos' },
+    ];
+    return transicoes.map(t => {
+      const rDe = byName[t.de], rPara = byName[t.para];
+      const hasData = rDe && rPara && rDe.tracked && rPara.tracked && rDe.real > 0;
+      const pct = hasData ? Math.min(rPara.real / rDe.real * 100, 100) : 0;
       return `
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;${i>0?'border-top:1px dashed rgba(180,165,140,0.12);':''}">
-          <div style="display:flex;align-items:center;gap:7px;">
-            <span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;letter-spacing:0.6px;color:var(--txt-faint);text-transform:uppercase;">${r.indicador}</span>
-            ${cvr ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:11px;color:var(--txt-faint);">→ ${cvr}</span>` : ''}
+        <div style="margin-bottom:14px;">
+          <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;
+            letter-spacing:0.8px;color:var(--txt-faint);text-transform:uppercase;margin-bottom:4px;">${t.label}</div>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <div style="flex:1;height:8px;background:rgba(180,165,140,0.15);border-radius:4px;overflow:hidden;">
+              <div style="height:100%;width:${pct.toFixed(1)}%;background:var(--gold);border-radius:4px;transition:width 0.8s ease;"></div>
+            </div>
+            <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;
+              color:var(--gold);min-width:38px;text-align:right;">${hasData ? Math.round(pct)+'%' : '—'}</span>
           </div>
-          <span style="font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:700;color:${r.tracked?'var(--txt)':'var(--txt-faint)'};">${valStr}</span>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">
+            ${hasData
+              ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:var(--gold);font-weight:700;">${fmt(Math.round(rPara.real))}</strong><span style="color:var(--txt-faint);"> de ${fmt(Math.round(rDe.real))} ${t.de.toLowerCase()}</span></span>`
+              : `<span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-style:italic;color:var(--txt-faint);">ainda não disponível na base</span>`
+            }
+          </div>
         </div>`;
     }).join('');
   }
@@ -437,14 +481,28 @@ function renderMetas() {
   let agentesHTML = agentes.map(ag => {
     const rawRows = dados.filter(d => d.agente === ag);
     const displayRows = ORDEM_INDICADORES.map(ind => {
+      if (ind === 'Atendimentos') {
+        const found = rawRows.find(r => r.indicador === ind);
+        return { ...(found || { agente: ag, indicador: ind, mes, meta: 0 }), real: computeAtendimentosEZ(ag), tracked: true };
+      }
       const found = rawRows.find(r => r.indicador === ind);
       return found ? { ...found, tracked: true } : { agente: ag, indicador: ind, mes, meta: 0, real: 0, tracked: false };
     });
+    const byName = {};
+    displayRows.forEach(r => { byName[r.indicador] = r; });
     const view = metasAgentView[ag] === 'performance' ? 'performance' : 'meta';
     const cards = displayRows.map(r => {
       const hasMeta = r.meta > 0;
       const pct = hasMeta ? Math.min(r.real/r.meta*100,100) : 0;
       const c   = cor(r.real, r.meta);
+      let subLine;
+      if (hasMeta) {
+        subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}</span></span>`;
+      } else if (r.tracked) {
+        subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:var(--txt);font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);font-style:italic;"> · meta ainda não definida</span></span>`;
+      } else {
+        subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-style:italic;color:var(--txt-faint);">ainda não disponível na base</span>`;
+      }
       return `
         <div style="margin-bottom:14px;">
           <div style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:600;
@@ -454,18 +512,14 @@ function renderMetas() {
               <div style="height:100%;width:${pct.toFixed(1)}%;background:${c};border-radius:4px;transition:width 0.8s ease;"></div>
             </div>
             <span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:700;
-              color:${c};min-width:38px;text-align:right;">${badge(r.real,r.meta)}</span>
+              color:${c};min-width:38px;text-align:right;">${hasMeta ? badge(r.real,r.meta) : '—'}</span>
           </div>
-          <div style="display:flex;justify-content:space-between;margin-top:4px;">
-            ${hasMeta
-              ? `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}</span></span>`
-              : `<span style="font-family:'Barlow Condensed',sans-serif;font-size:13px;font-style:italic;color:var(--txt-faint);">ainda não disponível na base</span>`
-            }
-          </div>
+          <div style="display:flex;justify-content:space-between;margin-top:4px;">${subLine}</div>
         </div>`;
     }).join('');
+    const perf = buildPerformanceHTML(byName);
 
-    // Calcular % médio do agente para ranking — só indicadores reais (com meta), Atendimentos sintético não entra
+    // Calcular % médio do agente para ranking — só indicadores reais (com meta), Atendimentos ainda não entra
     const medPct = rawRows.reduce((s,r) => s + (r.meta ? r.real/r.meta*100 : 0), 0) / Math.max(rawRows.length, 1);
     const cAg    = cor(medPct, 100);
 
@@ -477,12 +531,13 @@ function renderMetas() {
             <div class="c-title pill-l3">${ag}</div>
             <div class="c-sub" style="color:${cAg};font-weight:600;">${Math.round(medPct)}% da meta</div>
           </div>
-          <label class="metric-toggle${view==='performance'?' on':''}" onclick="toggleAgentView('${ag}')" title="Alternar entre meta e performance por fase">
+          <label class="metric-toggle${view==='performance'?' on':''}" onclick="toggleAgentView('${ag}',this)" title="Alternar entre meta e performance por fase">
             <span class="metric-toggle-lbl">${view==='performance'?'Performance':'Meta'}</span>
             <span class="metric-toggle-track"><span class="metric-toggle-thumb"></span></span>
           </label>
         </div>
-        <div style="margin-top:14px;">${view==='performance' ? buildPerformanceHTML(displayRows) : cards}</div>
+        <div class="metas-view-meta" style="margin-top:14px;display:${view==='performance'?'none':''};">${cards}</div>
+        <div class="metas-view-perf" style="margin-top:14px;display:${view==='performance'?'':'none'};">${perf}</div>
       </div>
     </div>`;
   }).join('');
