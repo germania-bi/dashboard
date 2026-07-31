@@ -533,7 +533,7 @@ function renderMetas() {
       const c   = cor(r.real, r.meta);
       let subLine;
       if (hasMeta) {
-        subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}${r.estimated ? ' <em>(estimativa)</em>' : ''}</span></span>`;
+        subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}</span></span>`;
       } else if (r.tracked) {
         subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:var(--txt);font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);font-style:italic;"> · meta ainda não definida</span></span>`;
       } else {
