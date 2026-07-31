@@ -369,6 +369,55 @@ function renderMetas() {
     .filter(ag => !METAS_EXCLUIR.includes(ag));
   const timeRow     = (ind) => dados.find(d => d.agente === 'Time' && d.indicador === ind) || {meta:0,real:0};
 
+  // Atendimentos ainda não tem META na planilha de Metas, mas o REAL já dá pra puxar do EZ_TICKETS (mesma
+  // fonte da aba Performance Atendimento). Nomes divergem entre bases (EZ: "Raiza"/"Marciano"/"Dayane" ·
+  // Metas: "Raíza"/"Marciano Luis"/"Dayane Santos"), daí a normalização.
+  const normAg = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+  function computeAtendimentosEZ(agenteNome) {
+    const alvo = normAg(agenteNome).split(' ')[0];
+    const doAgente = EZ_TICKETS.filter(t => normAg(t.Agente) === alvo);
+    if (mesRawM === 0) {
+      const ano = new Date().getFullYear();
+      return doAgente.filter(t => t.DataStr >= `${ano}-01-01` && t.DataStr <= `${ano}-12-31`).length;
+    }
+    if (triSelM && TRI_MAP[triSelM]) {
+      return doAgente.filter(t => TRI_MAP[triSelM].includes(parseInt(t.DataStr.slice(5,7)))).length;
+    }
+    if (semSel > 0) {
+      const r = getDateRangeForFilter(mes, semSel);
+      return doAgente.filter(t => t.DataStr >= r.de && t.DataStr <= r.ate).length;
+    }
+    if (isCurrentMonth && effectiveSem > 0) {
+      const rStart = getDateRangeForFilter(mes, 0), rEnd = getDateRangeForFilter(mes, effectiveSem);
+      return doAgente.filter(t => t.DataStr >= rStart.de && t.DataStr <= rEnd.ate).length;
+    }
+    const r = getDateRangeForFilter(mes, 0);
+    return doAgente.filter(t => t.DataStr >= r.de && t.DataStr <= r.ate).length;
+  }
+
+  // Atendimentos do Time vem do SEMANAL_RAW (Visão Geral) — a meta já existe lá (planilha "Quadro de
+  // Indicadores Semana"), só falta a planilha de Metas por agente ganhar essa coluna. Mesma lógica de
+  // acumulação de semanas (semana isolada / parcial / mês-trimestre-ano cheio) já usada acima.
+  let weeksSemanal;
+  if (mesRawM === 0) {
+    weeksSemanal = [];
+    for (let m = 1; m <= 12; m++) for (let s = 1; s <= 4; s++) weeksSemanal.push({mes:m, sem:s});
+  } else if (triSelM && TRI_MAP[triSelM]) {
+    weeksSemanal = [];
+    TRI_MAP[triSelM].forEach(m => { for (let s = 1; s <= 4; s++) weeksSemanal.push({mes:m, sem:s}); });
+  } else if (semSel > 0) {
+    weeksSemanal = [{mes, sem: semSel}];
+  } else if (isCurrentMonth && effectiveSem > 0) {
+    weeksSemanal = [];
+    for (let s = 1; s <= effectiveSem; s++) weeksSemanal.push({mes, sem:s});
+  } else {
+    weeksSemanal = [1,2,3,4].map(s => ({mes, sem:s}));
+  }
+  const atendTeam = sumSemanal('Engajamento / Atendimento', weeksSemanal);
+  // Distribui a meta do Time entre as vendedoras proporcionalmente à participação de cada uma no total
+  // real de atendimentos (EZ) — é estimativa, não meta oficial por pessoa, até a planilha ganhar essa coluna.
+  const totalAtendRealAgentes = agentes.reduce((s,a) => s + computeAtendimentosEZ(a), 0);
+
   const SC = {green:'#1E7A42', yellow:'#966A00', red:'#B82418', gray:'#9BA8B0'};
   function cor(real, meta) {
     if (!meta) return SC.gray;
@@ -387,8 +436,14 @@ function renderMetas() {
   }
 
   // ── Seção 1: Time ──
-  let teamHTML = indicadores.map(ind => {
-    const t   = timeRow(ind);
+  // Atendimentos entra primeiro, igual à ordem usada nos cards individuais.
+  const teamIndicadores = ['Atendimentos', ...indicadores];
+  function timeRowForCard(ind) {
+    if (ind === 'Atendimentos') return { meta: atendTeam.meta, real: atendTeam.res };
+    return timeRow(ind);
+  }
+  let teamHTML = teamIndicadores.map(ind => {
+    const t   = timeRowForCard(ind);
     const pct = t.meta ? Math.min(t.real/t.meta*100, 100) : 0;
     const c   = cor(t.real, t.meta);
     const bg  = c === SC.green ? 'rgba(30,122,66,0.12)' : c === SC.yellow ? 'rgba(150,106,0,0.12)' : 'rgba(184,36,24,0.10)';
@@ -417,33 +472,9 @@ function renderMetas() {
   }).join('');
 
   // ── Seção 2: Agentes ──
-  // Ordem fixa igual ao funil de vendas. Orçamentos/Pedidos/Faturamento/Litros vêm da planilha de Metas.
-  // Atendimentos ainda não tem META na planilha, mas o REAL já dá pra puxar do EZ_TICKETS (mesma fonte da
-  // aba Performance Atendimento) — só falta a meta ser definida. Nomes divergem entre bases
-  // (EZ: "Raiza"/"Marciano"/"Dayane" · Metas: "Raíza"/"Marciano Luis"/"Dayane Santos"), daí a normalização.
+  // Ordem fixa igual ao funil de vendas. Orçamentos/Pedidos/Faturamento/Litros vêm da planilha de Metas;
+  // Atendimentos vem do computeAtendimentosEZ() definido acima.
   const ORDEM_INDICADORES = ['Atendimentos', 'Orçamentos', 'Pedidos', 'Faturamento', 'Litros'];
-  const normAg = s => (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
-  function computeAtendimentosEZ(agenteNome) {
-    const alvo = normAg(agenteNome).split(' ')[0];
-    const doAgente = EZ_TICKETS.filter(t => normAg(t.Agente) === alvo);
-    if (mesRawM === 0) {
-      const ano = new Date().getFullYear();
-      return doAgente.filter(t => t.DataStr >= `${ano}-01-01` && t.DataStr <= `${ano}-12-31`).length;
-    }
-    if (triSelM && TRI_MAP[triSelM]) {
-      return doAgente.filter(t => TRI_MAP[triSelM].includes(parseInt(t.DataStr.slice(5,7)))).length;
-    }
-    if (semSel > 0) {
-      const r = getDateRangeForFilter(mes, semSel);
-      return doAgente.filter(t => t.DataStr >= r.de && t.DataStr <= r.ate).length;
-    }
-    if (isCurrentMonth && effectiveSem > 0) {
-      const rStart = getDateRangeForFilter(mes, 0), rEnd = getDateRangeForFilter(mes, effectiveSem);
-      return doAgente.filter(t => t.DataStr >= rStart.de && t.DataStr <= rEnd.ate).length;
-    }
-    const r = getDateRangeForFilter(mes, 0);
-    return doAgente.filter(t => t.DataStr >= r.de && t.DataStr <= r.ate).length;
-  }
 
   // Visão "Performance": mesmo visual das barras de Meta, só troca % de atingimento por % de conversão
   // entre fases de contagem (Atendimentos→Orçamentos, Orçamentos→Pedidos). Faturamento/Litros ficam de
@@ -483,7 +514,13 @@ function renderMetas() {
     const displayRows = ORDEM_INDICADORES.map(ind => {
       if (ind === 'Atendimentos') {
         const found = rawRows.find(r => r.indicador === ind);
-        return { ...(found || { agente: ag, indicador: ind, mes, meta: 0 }), real: computeAtendimentosEZ(ag), tracked: true };
+        const realCount = computeAtendimentosEZ(ag);
+        // Sem meta oficial por agente ainda: estima dividindo a meta do Time proporcionalmente à
+        // participação de cada um no total real. Se um dia a planilha ganhar meta por pessoa, usa ela.
+        const metaEstimada = totalAtendRealAgentes > 0 ? atendTeam.meta * (realCount / totalAtendRealAgentes) : 0;
+        return found
+          ? { ...found, real: realCount, tracked: true, estimated: false }
+          : { agente: ag, indicador: ind, mes, meta: metaEstimada, real: realCount, tracked: true, estimated: true };
       }
       const found = rawRows.find(r => r.indicador === ind);
       return found ? { ...found, tracked: true } : { agente: ag, indicador: ind, mes, meta: 0, real: 0, tracked: false };
@@ -497,7 +534,7 @@ function renderMetas() {
       const c   = cor(r.real, r.meta);
       let subLine;
       if (hasMeta) {
-        subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}</span></span>`;
+        subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:${c};font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);"> de ${fmtV(r.indicador,r.meta)}${r.estimated ? ' <em>(estimativa)</em>' : ''}</span></span>`;
       } else if (r.tracked) {
         subLine = `<span style="font-family:'Barlow Condensed',sans-serif;font-size:15px;"><strong style="color:var(--txt);font-weight:700;">${fmtV(r.indicador,r.real)}</strong><span style="color:var(--txt-faint);font-style:italic;"> · meta ainda não definida</span></span>`;
       } else {
@@ -635,7 +672,7 @@ function renderMetas() {
 
   el.innerHTML = `
   <!-- METAS TEAM -->
-  <div class="row" style="grid-template-columns:repeat(${Math.min(indicadores.length,4)},1fr);">
+  <div class="row" style="grid-template-columns:repeat(${Math.min(teamIndicadores.length,5)},1fr);">
     ${teamHTML}
   </div>
 
