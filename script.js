@@ -273,8 +273,6 @@ function toggleAgentView(ag, btn) {
   const perfEl = card.querySelector('.metas-view-perf');
   if (metaEl) metaEl.style.display = nowPerf ? 'none' : '';
   if (perfEl) perfEl.style.display = nowPerf ? '' : 'none';
-  const lbl = btn.querySelector('.metric-toggle-lbl');
-  if (lbl) lbl.textContent = nowPerf ? 'Performance' : 'Meta';
   btn.classList.toggle('on', nowPerf);
 }
 
@@ -414,9 +412,11 @@ function renderMetas() {
     weeksSemanal = [1,2,3,4].map(s => ({mes, sem:s}));
   }
   const atendTeam = sumSemanal('Engajamento / Atendimento', weeksSemanal);
-  // Distribui a meta do Time entre as vendedoras proporcionalmente à participação de cada uma no total
-  // real de atendimentos (EZ) — é estimativa, não meta oficial por pessoa, até a planilha ganhar essa coluna.
-  const totalAtendRealAgentes = agentes.reduce((s,a) => s + computeAtendimentosEZ(a), 0);
+  // Divide a meta do Time em partes iguais — 3 cadeiras de atendimento fixas, independente de quantas
+  // vendedoras aparecem com dado no mês (uma ausência não reduz o "terço" das outras). É estimativa,
+  // não meta oficial por pessoa, até a planilha ganhar essa coluna.
+  const CADEIRAS_ATENDIMENTO = 3;
+  const metaAtendimentoEstimada = atendTeam.meta / CADEIRAS_ATENDIMENTO;
 
   const SC = {green:'#1E7A42', yellow:'#966A00', red:'#B82418', gray:'#9BA8B0'};
   function cor(real, meta) {
@@ -515,12 +515,11 @@ function renderMetas() {
       if (ind === 'Atendimentos') {
         const found = rawRows.find(r => r.indicador === ind);
         const realCount = computeAtendimentosEZ(ag);
-        // Sem meta oficial por agente ainda: estima dividindo a meta do Time proporcionalmente à
-        // participação de cada um no total real. Se um dia a planilha ganhar meta por pessoa, usa ela.
-        const metaEstimada = totalAtendRealAgentes > 0 ? atendTeam.meta * (realCount / totalAtendRealAgentes) : 0;
+        // Sem meta oficial por agente ainda: estima com o terço fixo da meta do Time (3 cadeiras).
+        // Se um dia a planilha ganhar meta por pessoa, usa ela em vez da estimativa.
         return found
           ? { ...found, real: realCount, tracked: true, estimated: false }
-          : { agente: ag, indicador: ind, mes, meta: metaEstimada, real: realCount, tracked: true, estimated: true };
+          : { agente: ag, indicador: ind, mes, meta: metaAtendimentoEstimada, real: realCount, tracked: true, estimated: true };
       }
       const found = rawRows.find(r => r.indicador === ind);
       return found ? { ...found, tracked: true } : { agente: ag, indicador: ind, mes, meta: 0, real: 0, tracked: false };
@@ -569,8 +568,9 @@ function renderMetas() {
             <div class="c-sub" style="color:${cAg};font-weight:600;">${Math.round(medPct)}% da meta</div>
           </div>
           <label class="metric-toggle${view==='performance'?' on':''}" onclick="toggleAgentView('${ag}',this)" title="Alternar entre meta e performance por fase">
-            <span class="metric-toggle-lbl">${view==='performance'?'Performance':'Meta'}</span>
+            <span class="metric-toggle-lbl metric-toggle-lbl-meta">Meta</span>
             <span class="metric-toggle-track"><span class="metric-toggle-thumb"></span></span>
+            <span class="metric-toggle-lbl metric-toggle-lbl-perf">Performance</span>
           </label>
         </div>
         <div class="metas-view-meta" style="margin-top:14px;display:${view==='performance'?'none':''};">${cards}</div>

@@ -135,7 +135,7 @@
 .trend-ctx-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 10.5px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--txt-faint); }
 .trend-ctx-val { font-family: 'Barlow Condensed', sans-serif; font-size: 22px; font-weight: 800; line-height: 1.08; }
 .trend-ctx-delta { font-family: 'Barlow Condensed', sans-serif; font-size: 11.5px; font-weight: 600; }
-.metric-toggle { display: flex; align-items: center; gap: 7px; cursor: pointer; user-select: none; flex-shrink: 0; margin-top: 2px; }
+.metric-toggle { display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; flex-shrink: 0; margin-top: 2px; }
 .metric-toggle-lbl { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; color: var(--txt-mid); white-space: nowrap; transition: color 0.2s; }
 .metric-toggle-track { position: relative; width: 34px; height: 19px; background: rgba(180,165,140,0.28); border-radius: 10px; transition: background 0.25s; flex-shrink: 0; }
 .metric-toggle-thumb { position: absolute; top: 2.5px; left: 2.5px; width: 14px; height: 14px; background: #8B7040; border-radius: 50%; transition: transform 0.25s, background 0.25s; }
@@ -143,6 +143,12 @@
 .metric-toggle.on .metric-toggle-thumb { background: #1A1208; transform: translateX(15px); }
 :root[data-theme="dark"] .metric-toggle-lbl { color: rgba(241,227,206,0.5); }
 :root[data-theme="dark"] .metric-toggle.on .metric-toggle-lbl { color: var(--gold-lt); }
+/* Toggle com os dois rótulos sempre visíveis (Meta | Performance) — o ativo em destaque, o outro apagado */
+.metric-toggle-lbl-meta, .metric-toggle-lbl-perf { opacity: 0.5; font-weight: 500; transition: opacity .2s, color .2s, font-weight .2s; }
+.metric-toggle:not(.on) .metric-toggle-lbl-meta { color: var(--gold); font-weight: 800; opacity: 1; }
+.metric-toggle.on .metric-toggle-lbl-perf { color: var(--gold); font-weight: 800; opacity: 1; }
+:root[data-theme="dark"] .metric-toggle:not(.on) .metric-toggle-lbl-meta { color: var(--gold-lt); }
+:root[data-theme="dark"] .metric-toggle.on .metric-toggle-lbl-perf { color: var(--gold-lt); }
 
 /* ─── Tab content — garantir display correto em qualquer tema ─── */
 /* Tab visibility — máxima especificidade, anular qualquer position do style.css */
@@ -647,7 +653,7 @@
   <span>RD Station + EZ Atendimento &nbsp;·&nbsp; Relacionamento / Lig Chopp Germânia</span>
 </div></div>
 
-<script src="script.js?v=53"></script>
+<script src="script.js?v=54"></script>
 <script>/* garante mês atual mesmo se script.js em cache tiver versão antiga */
 (function(){var m=document.getElementById('f-mes');if(m)m.value=String(new Date().getMonth()+1);})();
 </script>
