@@ -23,6 +23,7 @@ let META_DAILY     = [];
 let META_CAMPAIGNS = [];
 let metaLoaded     = false;
 let metaFetching   = false;
+let metaLoadedRange = null; // {since,until} do range atualmente carregado em META_DAILY/META_CAMPAIGNS
 
 // Fronteiras semanais reais por mês (ano → mês → [fim S1, fim S2, fim S3])
 // S4 vai até o fim do mês. Atualizar mensalmente.
@@ -1872,21 +1873,59 @@ function setTab(el){
 ══════════════════════════════════════════ */
 const CAMP_EXCLUIR = ['[FORMS NATIVO] [TROQUE DE COLARINHO]', 'SUA CASA NOSSO BAR'];
 
-async function loadMetaData() {
+// Resolve since/until do Meta Ads a partir do MESMO filtro principal usado no resto do app (mês/semana/
+// trimestre/ano completo) — a API aceita since/until livre (testado até ano inteiro), então cada troca de
+// filtro busca exatamente o período pedido, em vez de depender de uma janela fixa de dias corridos.
+function resolveMetaPeriodo() {
+  const mesRaw = parseInt(document.getElementById('f-mes')?.value);
+  const mes    = mesRaw || new Date().getMonth() + 1;
+  const sem    = parseInt(document.getElementById('f-sem')?.value) || 0;
+  const tri    = parseInt(document.getElementById('f-tri')?.value) || 0;
+  const year   = new Date().getFullYear();
+  const pad    = n => String(n).padStart(2,'0');
+  const hoje   = new Date().toISOString().slice(0,10);
+  const MESES  = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+  const TRI_NOMES = {1:'Q1 · Jan–Mar', 2:'Q2 · Abr–Jun', 3:'Q3 · Jul–Set', 4:'Q4 · Out–Dez'};
+
+  if (mesRaw === 0) {
+    return { since: `${year}-01-01`, until: hoje, label: 'Ano completo' };
+  }
+  if (tri > 0) {
+    const triM = tri===1?[1,2,3]:tri===2?[4,5,6]:tri===3?[7,8,9]:[10,11,12];
+    const since = `${year}-${pad(triM[0])}-01`;
+    const lastDay = new Date(year, triM[2], 0).getDate();
+    const until = `${year}-${pad(triM[2])}-${pad(lastDay)}`;
+    return { since, until: until > hoje ? hoje : until, label: TRI_NOMES[tri] };
+  }
+  if (sem > 0) {
+    const { de, ate } = getDateRangeForFilter(mes, sem);
+    return { since: de, until: ate > hoje ? hoje : ate, label: MESES[mes-1] + ' · Semana ' + sem };
+  }
+  const { de, ate } = getDateRangeForFilter(mes, 0);
+  return { since: de, until: ate > hoje ? hoje : ate, label: MESES[mes-1] };
+}
+
+let metaLoadError = false;
+async function loadMetaData(since, until) {
   if (metaFetching) return;
   metaFetching = true;
   try {
+    const qs = `since=${since}&until=${until}`;
     const [insRes, camRes] = await Promise.all([
-      fetch(META_API + '/api/insights?period=last_90d').then(r => r.json()),
-      fetch(META_API + '/api/campaigns?period=last_90d').then(r => r.json())
+      fetch(META_API + '/api/insights?' + qs).then(r => r.json()),
+      fetch(META_API + '/api/campaigns?' + qs).then(r => r.json())
     ]);
     META_DAILY     = insRes.data?.daily || [];
     META_CAMPAIGNS = camRes.data || [];
-    console.log('[Meta Ads] daily:', META_DAILY.length, 'campaigns:', META_CAMPAIGNS.length);
+    metaLoadedRange = { since, until };
+    metaLoadError   = false;
+    console.log('[Meta Ads]', since, 'a', until, '| daily:', META_DAILY.length, 'campaigns:', META_CAMPAIGNS.length);
   } catch(e) {
     console.warn('[Meta Ads] API error:', e);
     META_DAILY = [];
     META_CAMPAIGNS = [];
+    metaLoadedRange = null;
+    metaLoadError   = true;
   }
   metaFetching = false;
   metaLoaded   = true;
@@ -1897,42 +1936,36 @@ function renderMarketing() {
   const el = document.getElementById('marketing-main');
   if (!el) return;
 
-  if (!metaLoaded) {
-    if (!metaFetching) loadMetaData();
+  const periodo = resolveMetaPeriodo();
+  const precisaRecarregar = !metaLoadedRange || metaLoadedRange.since !== periodo.since || metaLoadedRange.until !== periodo.until;
+
+  if (precisaRecarregar) {
+    if (!metaFetching) loadMetaData(periodo.since, periodo.until);
     el.innerHTML = `<div style="text-align:center;padding:80px 0;font-family:'Barlow Condensed',sans-serif;font-size:16px;color:var(--txt-faint);">Carregando dados do Meta Ads…</div>`;
     return;
   }
 
-  if (!META_DAILY.length) {
+  if (metaLoadError) {
     el.innerHTML = `<div style="text-align:center;padding:80px 0;font-family:'Barlow Condensed',sans-serif;font-size:15px;color:#B82418;">Não foi possível carregar os dados do Meta Ads.</div>`;
+    return;
+  }
+
+  if (!META_DAILY.length) {
+    el.innerHTML = `<div style="text-align:center;padding:80px 0;font-family:'Barlow Condensed',sans-serif;font-size:15px;color:var(--txt-faint);">Sem dados do Meta Ads em ${periodo.label}.</div>`;
     return;
   }
 
   const fmtBRL = v => 'R$ ' + Number(v).toLocaleString('pt-BR', {minimumFractionDigits:2, maximumFractionDigits:2});
   const fmtN   = v => Number(v).toLocaleString('pt-BR');
 
-  // Lê filtro principal
+  // Lê filtro principal (Chopp/EZ usam o mesmo, independente do range já resolvido acima pro Meta Ads)
   const mesRaw = parseInt(document.getElementById('f-mes')?.value);
   const mes    = mesRaw || new Date().getMonth() + 1;
   const sem    = parseInt(document.getElementById('f-sem')?.value) || 0;
   const tri    = parseInt(document.getElementById('f-tri')?.value) || 0;
-  const year   = new Date().getFullYear();
-  const pad    = n => String(n).padStart(2,'0');
 
-  // Filtra daily pelo mesmo período do filtro principal
-  let dailyF = [];
-  if (mesRaw === 0) {
-    // Ano completo: usa tudo que a API trouxe (hoje, últimos 90 dias — não existe endpoint de ano inteiro)
-    dailyF = META_DAILY;
-  } else if (tri > 0) {
-    const triM = tri===1?[1,2,3]:tri===2?[4,5,6]:tri===3?[7,8,9]:[10,11,12];
-    dailyF = META_DAILY.filter(d => triM.includes(parseInt(d.date.split('-')[1])));
-  } else if (sem > 0) {
-    const {de, ate} = getDateRangeForFilter(mes, sem);
-    dailyF = META_DAILY.filter(d => d.date >= de && d.date <= ate);
-  } else {
-    dailyF = META_DAILY.filter(d => d.date.startsWith(`${year}-${pad(mes)}`));
-  }
+  // META_DAILY já vem exatamente no período selecionado (fetch by since/until) — sem refiltrar aqui.
+  const dailyF = META_DAILY;
 
   // Ratio de exclusão: campanhas Troque de Colarinho excluídas do agregado
   const isExcl    = c => CAMP_EXCLUIR.some(ex => (c.name||'').includes(ex));
@@ -2039,7 +2072,7 @@ function renderMarketing() {
   const campHTML = sorted.length ? `
   <div class="card" style="padding:20px;">
     <div style="font-family:'Barlow Condensed',sans-serif;font-size:12px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--txt-faint);margin-bottom:4px;">Campanhas</div>
-    <div style="font-size:11px;color:var(--txt-faint);margin-bottom:16px;font-style:italic;">Últimos 90 dias · ordenadas por investimento</div>
+    <div style="font-size:11px;color:var(--txt-faint);margin-bottom:16px;font-style:italic;">${periodo.label} · ordenadas por investimento</div>
     <div style="overflow-x:auto;">
     <table style="width:100%;border-collapse:collapse;font-family:'Barlow Condensed',sans-serif;">
       <thead>
